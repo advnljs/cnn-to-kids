@@ -405,3 +405,48 @@ footer p {
         transform: scale(1.1);
     }
 }
+
+/* Canvas 样式优化 */
+canvas {
+    display: block;
+    background: white;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+/* 扫描区域指示 */
+.scanning-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: #ff6b6b;
+    border-radius: 50%;
+    animation: scanBlink 0.5s ease-in-out infinite;
+    margin-left: 5px;
+}
+
+@keyframes scanBlink {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.3;
+        transform: scale(0.8);
+    }
+}
+
+/* 优化可视化容器布局 */
+.visualization {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.visualization > .grid-display {
+    flex: 1;
+    min-width: 250px;
+}

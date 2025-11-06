@@ -239,7 +239,7 @@ class ImageProcessor {
 // 可视化类
 class Visualizer {
     // 在 canvas 上绘制矩阵
-    static drawMatrix(canvas, matrix, cellSize = 10) {
+    static drawMatrix(canvas, matrix, cellSize = 10, highlightPos = null) {
         const ctx = canvas.getContext('2d');
         const height = matrix.length;
         const width = matrix[0].length;
@@ -253,6 +253,18 @@ class Visualizer {
                 ctx.fillStyle = `rgb(${value}, ${value}, ${value})`;
                 ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
             }
+        }
+
+        // 绘制高亮区域（卷积核扫描位置）
+        if (highlightPos) {
+            ctx.strokeStyle = '#ff6b6b';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(
+                highlightPos.x * cellSize,
+                highlightPos.y * cellSize,
+                highlightPos.size * cellSize,
+                highlightPos.size * cellSize
+            );
         }
 
         // 绘制网格线
@@ -316,6 +328,141 @@ class Visualizer {
                 );
             }
         }
+    }
+
+    // 动画展示卷积过程
+    static async animateConvolution(inputCanvas, outputCanvas, matrix, kernel, cellSize = 8, speed = 50) {
+        const inputSize = matrix.length;
+        const kernelSize = kernel.length;
+        const outputSize = inputSize - kernelSize + 1;
+        const outputMatrix = Array(outputSize).fill(0).map(() => Array(outputSize).fill(0));
+
+        // 设置输出画布
+        const outCtx = outputCanvas.getContext('2d');
+        outputCanvas.width = outputSize * cellSize;
+        outputCanvas.height = outputSize * cellSize;
+
+        // 逐个位置扫描
+        for (let y = 0; y < outputSize; y++) {
+            for (let x = 0; x < outputSize; x++) {
+                // 计算卷积值
+                let sum = 0;
+                for (let ky = 0; ky < kernelSize; ky++) {
+                    for (let kx = 0; kx < kernelSize; kx++) {
+                        sum += matrix[y + ky][x + kx] * kernel[ky][kx];
+                    }
+                }
+                const value = Math.max(0, sum); // ReLU
+                outputMatrix[y][x] = value;
+
+                // 在输入图像上高亮当前扫描位置
+                Visualizer.drawMatrix(inputCanvas, matrix, cellSize, {
+                    x: x,
+                    y: y,
+                    size: kernelSize
+                });
+
+                // 更新输出矩阵
+                Visualizer.drawPartialMatrix(outputCanvas, outputMatrix, cellSize, x, y);
+
+                // 延迟，创建动画效果
+                await new Promise(resolve => setTimeout(resolve, speed));
+            }
+        }
+
+        // 返回归一化的输出矩阵
+        return ImageProcessor.normalize(outputMatrix);
+    }
+
+    // 绘制部分矩阵（用于动画）
+    static drawPartialMatrix(canvas, matrix, cellSize, upToX, upToY) {
+        const ctx = canvas.getContext('2d');
+
+        // 找到当前的最大最小值用于归一化
+        let max = -Infinity;
+        let min = Infinity;
+        for (let y = 0; y <= upToY; y++) {
+            const endX = y === upToY ? upToX : matrix[0].length - 1;
+            for (let x = 0; x <= endX; x++) {
+                max = Math.max(max, matrix[y][x]);
+                min = Math.min(min, matrix[y][x]);
+            }
+        }
+
+        const range = max - min || 1;
+
+        // 绘制到目前为止的所有格子
+        for (let y = 0; y <= upToY; y++) {
+            const endX = y === upToY ? upToX : matrix[0].length - 1;
+            for (let x = 0; x <= endX; x++) {
+                const normalized = (matrix[y][x] - min) / range;
+                const value = Math.floor(normalized * 255);
+                ctx.fillStyle = `rgb(${value}, ${value}, ${value})`;
+                ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+            }
+        }
+
+        // 高亮当前格子
+        ctx.strokeStyle = '#ff6b6b';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(upToX * cellSize, upToY * cellSize, cellSize, cellSize);
+
+        // 绘制网格
+        ctx.strokeStyle = 'rgba(200, 200, 200, 0.3)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= matrix[0].length; x++) {
+            ctx.beginPath();
+            ctx.moveTo(x * cellSize, 0);
+            ctx.lineTo(x * cellSize, matrix.length * cellSize);
+            ctx.stroke();
+        }
+        for (let y = 0; y <= matrix.length; y++) {
+            ctx.beginPath();
+            ctx.moveTo(0, y * cellSize);
+            ctx.lineTo(matrix[0].length * cellSize, y * cellSize);
+            ctx.stroke();
+        }
+    }
+
+    // 动画展示池化过程
+    static async animatePooling(inputCanvas, outputCanvas, matrix, poolSize, cellSize = 8, speed = 100) {
+        const inputSize = matrix.length;
+        const outputSize = Math.floor(inputSize / poolSize);
+        const outputMatrix = Array(outputSize).fill(0).map(() => Array(outputSize).fill(0));
+
+        const outCtx = outputCanvas.getContext('2d');
+        outputCanvas.width = outputSize * cellSize;
+        outputCanvas.height = outputSize * cellSize;
+
+        const inCtx = inputCanvas.getContext('2d');
+
+        for (let y = 0; y < outputSize; y++) {
+            for (let x = 0; x < outputSize; x++) {
+                // 找到池化窗口中的最大值
+                let maxVal = -Infinity;
+                for (let py = 0; py < poolSize; py++) {
+                    for (let px = 0; px < poolSize; px++) {
+                        const val = matrix[y * poolSize + py][x * poolSize + px];
+                        maxVal = Math.max(maxVal, val);
+                    }
+                }
+                outputMatrix[y][x] = maxVal;
+
+                // 在输入图像上高亮当前池化窗口
+                Visualizer.drawMatrix(inputCanvas, matrix, cellSize, {
+                    x: x * poolSize,
+                    y: y * poolSize,
+                    size: poolSize
+                });
+
+                // 更新输出矩阵
+                Visualizer.drawPartialMatrix(outputCanvas, outputMatrix, cellSize, x, y);
+
+                await new Promise(resolve => setTimeout(resolve, speed));
+            }
+        }
+
+        return outputMatrix;
     }
 }
 
@@ -413,7 +560,7 @@ class CNNProcessor {
                 • <strong>横线探测器</strong>：专门找横着的线条（比如嘴巴）<br>
                 • <strong>竖线探测器</strong>：专门找竖着的线条（比如鼻子）<br>
                 • <strong>边缘探测器</strong>：专门找边缘轮廓（比如脸的边缘）<br><br>
-                每个探测器都是一个 3×3 的小窗口，在图像上滑动，看看有没有它要找的特征。
+                👀 <strong>看！红色方框就是探测器，它在图像上一格一格地扫描！</strong>
             </div>
             <div class="visualization" id="convViz">
             </div>
@@ -426,33 +573,53 @@ class CNNProcessor {
         const vizContainer = document.getElementById('convViz');
 
         const kernelConfigs = [
-            { name: 'horizontal', label: '横线探测器', desc: '找到横线' },
-            { name: 'vertical', label: '竖线探测器', desc: '找到竖线' },
-            { name: 'edge', label: '边缘探测器', desc: '找到边缘' }
+            { name: 'horizontal', label: '横线探测器', desc: '扫描中...' },
+            { name: 'vertical', label: '竖线探测器', desc: '扫描中...' },
+            { name: 'edge', label: '边缘探测器', desc: '扫描中...' }
         ];
 
         for (let config of kernelConfigs) {
-            const result = ImageProcessor.convolve(matrix, this.kernels[config.name]);
-            const normalized = ImageProcessor.normalize(result);
-            results[config.name] = normalized;
-
             const gridDiv = document.createElement('div');
             gridDiv.className = 'grid-display';
             gridDiv.innerHTML = `
                 <div class="grid-title">${config.label}</div>
-                <canvas id="kernel_${config.name}"></canvas>
-                <canvas id="conv_${config.name}" style="margin-top: 10px;"></canvas>
-                <div style="font-size: 12px; color: #666; margin-top: 5px;">${config.desc}</div>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">探测器扫描</div>
+                        <canvas id="input_${config.name}"></canvas>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">提取的特征</div>
+                        <canvas id="output_${config.name}"></canvas>
+                    </div>
+                </div>
+                <div style="margin-top: 10px;">
+                    <div style="font-size: 12px; color: #666; margin-bottom: 5px;">探测器样子（3×3）</div>
+                    <canvas id="kernel_${config.name}"></canvas>
+                </div>
             `;
             vizContainer.appendChild(gridDiv);
 
-            await this.delay(50);
+            await this.delay(100);
 
+            // 绘制卷积核
             const kernelCanvas = document.getElementById(`kernel_${config.name}`);
             Visualizer.drawKernel(kernelCanvas, this.kernels[config.name]);
 
-            const convCanvas = document.getElementById(`conv_${config.name}`);
-            Visualizer.drawMatrix(convCanvas, normalized, 8);
+            // 执行动画卷积
+            const inputCanvas = document.getElementById(`input_${config.name}`);
+            const outputCanvas = document.getElementById(`output_${config.name}`);
+            const result = await Visualizer.animateConvolution(
+                inputCanvas,
+                outputCanvas,
+                matrix,
+                this.kernels[config.name],
+                8,
+                20  // 速度：20ms 每步
+            );
+
+            results[config.name] = result;
         }
 
         return results;
@@ -466,7 +633,7 @@ class CNNProcessor {
             <div class="step-description">
                 图像太大了，处理起来太慢！我们用"取最强信号"的方法来压缩。<br>
                 把每 2×2 的格子合并成 1 个格子，只保留最强的信号（最大的数值）。<br>
-                这样图像变小了，但重要信息还在！
+                👀 <strong>红色方框标出了当前正在压缩的 2×2 区域！</strong>
             </div>
             <div class="visualization" id="poolViz">
             </div>
@@ -479,21 +646,39 @@ class CNNProcessor {
         const vizContainer = document.getElementById('poolViz');
 
         for (let [name, matrix] of Object.entries(convResults)) {
-            const pooled = ImageProcessor.maxPool(matrix, 2);
-            results[name] = pooled;
-
             const gridDiv = document.createElement('div');
             gridDiv.className = 'grid-display';
             gridDiv.innerHTML = `
-                <div class="grid-title">压缩后 (${pooled.length}×${pooled.length})</div>
-                <canvas id="pool_${name}"></canvas>
+                <div class="grid-title">${name} 特征压缩</div>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">压缩前</div>
+                        <canvas id="poolInput_${name}"></canvas>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">压缩后</div>
+                        <canvas id="poolOutput_${name}"></canvas>
+                    </div>
+                </div>
             `;
             vizContainer.appendChild(gridDiv);
 
-            await this.delay(50);
+            await this.delay(100);
 
-            const canvas = document.getElementById(`pool_${name}`);
-            Visualizer.drawMatrix(canvas, pooled, 8);
+            // 执行动画池化
+            const inputCanvas = document.getElementById(`poolInput_${name}`);
+            const outputCanvas = document.getElementById(`poolOutput_${name}`);
+            const pooled = await Visualizer.animatePooling(
+                inputCanvas,
+                outputCanvas,
+                matrix,
+                2,  // 池化大小
+                8,  // 单元格大小
+                30  // 速度：30ms 每步
+            );
+
+            results[name] = pooled;
         }
 
         return results;
@@ -506,7 +691,8 @@ class CNNProcessor {
             <h3>🔍 步骤 4：更高级的特征探测</h3>
             <div class="step-description">
                 第一次找到了线条，现在要组合这些线条，找更复杂的图案！<br>
-                比如：用横线和竖线组合，可以找到"眼睛"、"嘴巴"等更高级的特征。
+                比如：用横线和竖线组合，可以找到"眼睛"、"嘴巴"等更高级的特征。<br>
+                👀 <strong>再次扫描，寻找更复杂的组合特征！</strong>
             </div>
             <div class="visualization" id="conv2Viz">
             </div>
@@ -519,22 +705,39 @@ class CNNProcessor {
         const vizContainer = document.getElementById('conv2Viz');
 
         for (let [name, matrix] of Object.entries(poolResults)) {
-            const result = ImageProcessor.convolve(matrix, this.kernels.edge);
-            const normalized = ImageProcessor.normalize(result);
-            results[name] = normalized;
-
             const gridDiv = document.createElement('div');
             gridDiv.className = 'grid-display';
             gridDiv.innerHTML = `
-                <div class="grid-title">${name} 高级特征</div>
-                <canvas id="conv2_${name}"></canvas>
+                <div class="grid-title">${name} 高级特征提取</div>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">再次扫描</div>
+                        <canvas id="conv2Input_${name}"></canvas>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">高级特征</div>
+                        <canvas id="conv2Output_${name}"></canvas>
+                    </div>
+                </div>
             `;
             vizContainer.appendChild(gridDiv);
 
-            await this.delay(50);
+            await this.delay(100);
 
-            const canvas = document.getElementById(`conv2_${name}`);
-            Visualizer.drawMatrix(canvas, normalized, 8);
+            // 执行动画卷积
+            const inputCanvas = document.getElementById(`conv2Input_${name}`);
+            const outputCanvas = document.getElementById(`conv2Output_${name}`);
+            const result = await Visualizer.animateConvolution(
+                inputCanvas,
+                outputCanvas,
+                matrix,
+                this.kernels.edge,
+                8,
+                30  // 速度稍快一些
+            );
+
+            results[name] = result;
         }
 
         return results;
@@ -547,7 +750,8 @@ class CNNProcessor {
             <h3>📦 步骤 5：再次压缩</h3>
             <div class="step-description">
                 再次使用"取最强信号"的方法，把图像压缩得更小。<br>
-                现在我们得到了最精华的特征信息！
+                现在我们得到了最精华的特征信息！<br>
+                👀 <strong>最后一次压缩，提取最重要的信息！</strong>
             </div>
             <div class="visualization" id="pool2Viz">
             </div>
@@ -560,21 +764,39 @@ class CNNProcessor {
         const vizContainer = document.getElementById('pool2Viz');
 
         for (let [name, matrix] of Object.entries(conv2Results)) {
-            const pooled = ImageProcessor.maxPool(matrix, 2);
-            results[name] = pooled;
-
             const gridDiv = document.createElement('div');
             gridDiv.className = 'grid-display';
             gridDiv.innerHTML = `
-                <div class="grid-title">${name} 最终特征</div>
-                <canvas id="pool2_${name}"></canvas>
+                <div class="grid-title">${name} 最终压缩</div>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">压缩前</div>
+                        <canvas id="pool2Input_${name}"></canvas>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">最终特征</div>
+                        <canvas id="pool2Output_${name}"></canvas>
+                    </div>
+                </div>
             `;
             vizContainer.appendChild(gridDiv);
 
-            await this.delay(50);
+            await this.delay(100);
 
-            const canvas = document.getElementById(`pool2_${name}`);
-            Visualizer.drawMatrix(canvas, pooled, 10);
+            // 执行动画池化
+            const inputCanvas = document.getElementById(`pool2Input_${name}`);
+            const outputCanvas = document.getElementById(`pool2Output_${name}`);
+            const pooled = await Visualizer.animatePooling(
+                inputCanvas,
+                outputCanvas,
+                matrix,
+                2,  // 池化大小
+                10,  // 单元格稍大一些
+                40   // 速度稍快
+            );
+
+            results[name] = pooled;
         }
 
         return results;
