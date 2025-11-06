@@ -330,6 +330,88 @@ class Visualizer {
         }
     }
 
+    // 绘制热力图（彩色，用于显示特征强度）
+    static drawHeatmap(canvas, matrix, cellSize = 10, highlightPos = null) {
+        const ctx = canvas.getContext('2d');
+        const height = matrix.length;
+        const width = matrix[0].length;
+
+        canvas.width = width * cellSize;
+        canvas.height = height * cellSize;
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const value = matrix[y][x];
+                // 使用热力图配色：蓝色（低）→ 绿色 → 黄色 → 红色（高）
+                const color = Visualizer.valueToHeatColor(value);
+                ctx.fillStyle = color;
+                ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+            }
+        }
+
+        // 绘制高亮区域
+        if (highlightPos) {
+            ctx.strokeStyle = '#ff6b6b';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(
+                highlightPos.x * cellSize,
+                highlightPos.y * cellSize,
+                highlightPos.size * cellSize,
+                highlightPos.size * cellSize
+            );
+        }
+
+        // 绘制网格线
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= width; x++) {
+            ctx.beginPath();
+            ctx.moveTo(x * cellSize, 0);
+            ctx.lineTo(x * cellSize, height * cellSize);
+            ctx.stroke();
+        }
+        for (let y = 0; y <= height; y++) {
+            ctx.beginPath();
+            ctx.moveTo(0, y * cellSize);
+            ctx.lineTo(width * cellSize, y * cellSize);
+            ctx.stroke();
+        }
+    }
+
+    // 将值转换为热力图颜色
+    static valueToHeatColor(value) {
+        // value 范围 0-1
+        if (value < 0.25) {
+            // 深蓝 → 浅蓝
+            const t = value / 0.25;
+            const r = Math.floor(0 + t * 0);
+            const g = Math.floor(0 + t * 100);
+            const b = Math.floor(139 + t * 116);
+            return `rgb(${r}, ${g}, ${b})`;
+        } else if (value < 0.5) {
+            // 浅蓝 → 绿色
+            const t = (value - 0.25) / 0.25;
+            const r = Math.floor(0 + t * 0);
+            const g = Math.floor(100 + t * 155);
+            const b = Math.floor(255 - t * 255);
+            return `rgb(${r}, ${g}, ${b})`;
+        } else if (value < 0.75) {
+            // 绿色 → 黄色
+            const t = (value - 0.5) / 0.25;
+            const r = Math.floor(0 + t * 255);
+            const g = Math.floor(255);
+            const b = Math.floor(0);
+            return `rgb(${r}, ${g}, ${b})`;
+        } else {
+            // 黄色 → 红色
+            const t = (value - 0.75) / 0.25;
+            const r = Math.floor(255);
+            const g = Math.floor(255 - t * 255);
+            const b = Math.floor(0);
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+    }
+
     // 动画展示卷积过程
     static async animateConvolution(inputCanvas, outputCanvas, matrix, kernel, cellSize = 8, speed = 50) {
         const inputSize = matrix.length;
@@ -375,7 +457,7 @@ class Visualizer {
     }
 
     // 绘制部分矩阵（用于动画）
-    static drawPartialMatrix(canvas, matrix, cellSize, upToX, upToY) {
+    static drawPartialMatrix(canvas, matrix, cellSize, upToX, upToY, useHeatmap = false) {
         const ctx = canvas.getContext('2d');
 
         // 找到当前的最大最小值用于归一化
@@ -396,8 +478,13 @@ class Visualizer {
             const endX = y === upToY ? upToX : matrix[0].length - 1;
             for (let x = 0; x <= endX; x++) {
                 const normalized = (matrix[y][x] - min) / range;
-                const value = Math.floor(normalized * 255);
-                ctx.fillStyle = `rgb(${value}, ${value}, ${value})`;
+
+                if (useHeatmap) {
+                    ctx.fillStyle = Visualizer.valueToHeatColor(normalized);
+                } else {
+                    const value = Math.floor(normalized * 255);
+                    ctx.fillStyle = `rgb(${value}, ${value}, ${value})`;
+                }
                 ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
             }
         }
@@ -408,7 +495,7 @@ class Visualizer {
         ctx.strokeRect(upToX * cellSize, upToY * cellSize, cellSize, cellSize);
 
         // 绘制网格
-        ctx.strokeStyle = 'rgba(200, 200, 200, 0.3)';
+        ctx.strokeStyle = useHeatmap ? 'rgba(255, 255, 255, 0.3)' : 'rgba(200, 200, 200, 0.3)';
         ctx.lineWidth = 1;
         for (let x = 0; x <= matrix[0].length; x++) {
             ctx.beginPath();
@@ -424,8 +511,52 @@ class Visualizer {
         }
     }
 
+    // 动画展示卷积过程（热力图版本）
+    static async animateConvolutionHeatmap(inputCanvas, outputCanvas, matrix, kernel, cellSize = 12, speed = 50) {
+        const inputSize = matrix.length;
+        const kernelSize = kernel.length;
+        const outputSize = inputSize - kernelSize + 1;
+        const outputMatrix = Array(outputSize).fill(0).map(() => Array(outputSize).fill(0));
+
+        // 设置输出画布
+        const outCtx = outputCanvas.getContext('2d');
+        outputCanvas.width = outputSize * cellSize;
+        outputCanvas.height = outputSize * cellSize;
+
+        // 逐个位置扫描
+        for (let y = 0; y < outputSize; y++) {
+            for (let x = 0; x < outputSize; x++) {
+                // 计算卷积值
+                let sum = 0;
+                for (let ky = 0; ky < kernelSize; ky++) {
+                    for (let kx = 0; kx < kernelSize; kx++) {
+                        sum += matrix[y + ky][x + kx] * kernel[ky][kx];
+                    }
+                }
+                const value = Math.max(0, sum); // ReLU
+                outputMatrix[y][x] = value;
+
+                // 在输入图像上高亮当前扫描位置（使用热力图）
+                Visualizer.drawHeatmap(inputCanvas, matrix, cellSize, {
+                    x: x,
+                    y: y,
+                    size: kernelSize
+                });
+
+                // 更新输出矩阵（使用热力图）
+                Visualizer.drawPartialMatrix(outputCanvas, outputMatrix, cellSize, x, y, true);
+
+                // 延迟，创建动画效果
+                await new Promise(resolve => setTimeout(resolve, speed));
+            }
+        }
+
+        // 返回归一化的输出矩阵
+        return ImageProcessor.normalize(outputMatrix);
+    }
+
     // 动画展示池化过程
-    static async animatePooling(inputCanvas, outputCanvas, matrix, poolSize, cellSize = 8, speed = 100) {
+    static async animatePooling(inputCanvas, outputCanvas, matrix, poolSize, cellSize = 8, speed = 100, useHeatmap = false) {
         const inputSize = matrix.length;
         const outputSize = Math.floor(inputSize / poolSize);
         const outputMatrix = Array(outputSize).fill(0).map(() => Array(outputSize).fill(0));
@@ -449,14 +580,22 @@ class Visualizer {
                 outputMatrix[y][x] = maxVal;
 
                 // 在输入图像上高亮当前池化窗口
-                Visualizer.drawMatrix(inputCanvas, matrix, cellSize, {
-                    x: x * poolSize,
-                    y: y * poolSize,
-                    size: poolSize
-                });
+                if (useHeatmap) {
+                    Visualizer.drawHeatmap(inputCanvas, matrix, cellSize, {
+                        x: x * poolSize,
+                        y: y * poolSize,
+                        size: poolSize
+                    });
+                } else {
+                    Visualizer.drawMatrix(inputCanvas, matrix, cellSize, {
+                        x: x * poolSize,
+                        y: y * poolSize,
+                        size: poolSize
+                    });
+                }
 
                 // 更新输出矩阵
-                Visualizer.drawPartialMatrix(outputCanvas, outputMatrix, cellSize, x, y);
+                Visualizer.drawPartialMatrix(outputCanvas, outputMatrix, cellSize, x, y, useHeatmap);
 
                 await new Promise(resolve => setTimeout(resolve, speed));
             }
@@ -692,7 +831,7 @@ class CNNProcessor {
             <div class="step-description">
                 第一次找到了线条，现在要组合这些线条，找更复杂的图案！<br>
                 比如：用横线和竖线组合，可以找到"眼睛"、"嘴巴"等更高级的特征。<br>
-                👀 <strong>再次扫描，寻找更复杂的组合特征！</strong>
+                🌈 <strong>用彩色热力图显示特征强度：红色=强特征，蓝色=弱特征</strong>
             </div>
             <div class="visualization" id="conv2Viz">
             </div>
@@ -711,12 +850,12 @@ class CNNProcessor {
                 <div class="grid-title">${name} 高级特征提取</div>
                 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                     <div>
-                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">再次扫描</div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">再次扫描（热力图）</div>
                         <canvas id="conv2Input_${name}"></canvas>
                     </div>
                     <div class="arrow">→</div>
                     <div>
-                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">高级特征</div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">高级特征（热力图）</div>
                         <canvas id="conv2Output_${name}"></canvas>
                     </div>
                 </div>
@@ -725,15 +864,15 @@ class CNNProcessor {
 
             await this.delay(100);
 
-            // 执行动画卷积
+            // 执行热力图动画卷积（单元格更大，看得更清楚）
             const inputCanvas = document.getElementById(`conv2Input_${name}`);
             const outputCanvas = document.getElementById(`conv2Output_${name}`);
-            const result = await Visualizer.animateConvolution(
+            const result = await Visualizer.animateConvolutionHeatmap(
                 inputCanvas,
                 outputCanvas,
                 matrix,
                 this.kernels.edge,
-                8,
+                15,  // 更大的单元格
                 30  // 速度稍快一些
             );
 
@@ -751,7 +890,7 @@ class CNNProcessor {
             <div class="step-description">
                 再次使用"取最强信号"的方法，把图像压缩得更小。<br>
                 现在我们得到了最精华的特征信息！<br>
-                👀 <strong>最后一次压缩，提取最重要的信息！</strong>
+                🌈 <strong>最后一次压缩，提取最重要的信息！热力图让特征更清晰！</strong>
             </div>
             <div class="visualization" id="pool2Viz">
             </div>
@@ -770,12 +909,12 @@ class CNNProcessor {
                 <div class="grid-title">${name} 最终压缩</div>
                 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                     <div>
-                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">压缩前</div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">压缩前（热力图）</div>
                         <canvas id="pool2Input_${name}"></canvas>
                     </div>
                     <div class="arrow">→</div>
                     <div>
-                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">最终特征</div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">最终特征（热力图）</div>
                         <canvas id="pool2Output_${name}"></canvas>
                     </div>
                 </div>
@@ -784,7 +923,7 @@ class CNNProcessor {
 
             await this.delay(100);
 
-            // 执行动画池化
+            // 执行动画池化（使用热力图）
             const inputCanvas = document.getElementById(`pool2Input_${name}`);
             const outputCanvas = document.getElementById(`pool2Output_${name}`);
             const pooled = await Visualizer.animatePooling(
@@ -792,8 +931,9 @@ class CNNProcessor {
                 outputCanvas,
                 matrix,
                 2,  // 池化大小
-                10,  // 单元格稍大一些
-                40   // 速度稍快
+                18,  // 单元格更大
+                40,  // 速度稍快
+                true // 使用热力图
             );
 
             results[name] = pooled;
@@ -839,57 +979,135 @@ class CNNProcessor {
     }
 
     classify(originalMatrix, features) {
-        // 分析原始图像的下半部分（嘴巴区域）
         const size = originalMatrix.length;
-        const mouthRegion = originalMatrix.slice(Math.floor(size * 0.6));
 
-        // 计算嘴巴区域的特征
-        let topDark = 0;
-        let bottomDark = 0;
+        // 分析策略：
+        // 1. 分析原始图像的嘴巴区域形状
+        // 2. 使用横线探测器的特征分布
+        // 3. 综合判断
 
-        const mouthHeight = mouthRegion.length;
-        const mouthTop = mouthRegion.slice(0, Math.floor(mouthHeight / 2));
-        const mouthBottom = mouthRegion.slice(Math.floor(mouthHeight / 2));
+        // === 策略1: 分析嘴巴区域的曲率 ===
+        // 嘴巴在脸的下半部分（60%-90%的位置）
+        const mouthStartY = Math.floor(size * 0.55);
+        const mouthEndY = Math.floor(size * 0.85);
+        const centerX = Math.floor(size / 2);
 
-        // 统计深色像素
-        for (let row of mouthTop) {
-            for (let val of row) {
-                if (val < 0.5) topDark++;
+        // 分析嘴巴的上弧和下弧
+        let upperArcDarkness = 0;  // 嘴巴上弧的深色像素
+        let lowerArcDarkness = 0;  // 嘴巴下弧的深色像素
+
+        for (let y = mouthStartY; y < mouthEndY; y++) {
+            const relativeY = (y - mouthStartY) / (mouthEndY - mouthStartY);
+            // 采样中间区域（嘴巴位置）
+            for (let dx = -6; dx <= 6; dx++) {
+                const x = centerX + dx;
+                if (x >= 0 && x < size) {
+                    const pixelValue = originalMatrix[y][x];
+                    if (pixelValue < 0.5) {  // 深色像素
+                        if (relativeY < 0.5) {
+                            upperArcDarkness++;
+                        } else {
+                            lowerArcDarkness++;
+                        }
+                    }
+                }
             }
         }
 
-        for (let row of mouthBottom) {
-            for (let val of row) {
-                if (val < 0.5) bottomDark++;
+        // === 策略2: 使用横线探测器的特征分布 ===
+        const horizFeature = features.horizontal;
+        const featSize = horizFeature.length;
+
+        // 分析横线特征的上下分布
+        let upperFeatureStrength = 0;
+        let lowerFeatureStrength = 0;
+
+        // 嘴巴对应的特征图区域（大约在下半部）
+        const featureMouthStart = Math.floor(featSize * 0.55);
+        const featureMouthEnd = Math.floor(featSize * 0.85);
+
+        for (let y = featureMouthStart; y < Math.min(featureMouthEnd, featSize); y++) {
+            const relativeY = (y - featureMouthStart) / (featureMouthEnd - featureMouthStart);
+            for (let x = 0; x < featSize; x++) {
+                const strength = horizFeature[y][x];
+                if (relativeY < 0.5) {
+                    upperFeatureStrength += strength;
+                } else {
+                    lowerFeatureStrength += strength;
+                }
             }
         }
 
-        // 计算特征强度
-        let horizontalStrength = 0;
-        for (let row of features.horizontal) {
-            for (let val of row) {
-                horizontalStrength += val;
+        // === 策略3: 分析边缘特征的分布 ===
+        const edgeFeature = features.edge;
+        let mouthEdgeStrength = 0;
+
+        for (let y = featureMouthStart; y < Math.min(featureMouthEnd, featSize); y++) {
+            for (let x = Math.floor(featSize * 0.3); x < Math.floor(featSize * 0.7); x++) {
+                mouthEdgeStrength += edgeFeature[y][x];
             }
         }
 
-        // 判断：如果上方深色像素多，可能是笑脸；如果下方多，可能是哭脸
-        const isSmile = topDark > bottomDark * 1.2;
+        // === 综合判断 ===
+        let smileScore = 0;
+        let sadScore = 0;
 
-        const confidence = Math.min(95, 60 + Math.abs(topDark - bottomDark) / 10);
+        // 判据1: 原始图像中，笑脸的嘴巴上弧有更多线条
+        if (upperArcDarkness > lowerArcDarkness * 1.1) {
+            smileScore += 2;
+        } else if (lowerArcDarkness > upperArcDarkness * 1.1) {
+            sadScore += 2;
+        }
+
+        // 判据2: 横线探测器，笑脸在上方有更强的横线
+        if (upperFeatureStrength > lowerFeatureStrength * 0.8) {
+            smileScore += 3;
+        } else {
+            sadScore += 3;
+        }
+
+        // 判据3: 总的深色像素分布
+        const totalDark = upperArcDarkness + lowerArcDarkness;
+        if (totalDark > 10) {  // 有明显的嘴巴
+            const upperRatio = upperArcDarkness / totalDark;
+            if (upperRatio > 0.55) {
+                smileScore += 2;
+            } else if (upperRatio < 0.45) {
+                sadScore += 2;
+            }
+        }
+
+        // 判据4: 边缘强度（嘴巴越明显，置信度越高）
+        const edgeBonus = Math.min(2, mouthEdgeStrength / 10);
+
+        const isSmile = smileScore >= sadScore;
+        const scoreDiff = Math.abs(smileScore - sadScore);
+        const confidence = Math.min(95, 50 + scoreDiff * 8 + edgeBonus * 5);
+
+        // 调试信息
+        console.log('分类特征:', {
+            upperArcDarkness,
+            lowerArcDarkness,
+            upperFeatureStrength: upperFeatureStrength.toFixed(2),
+            lowerFeatureStrength: lowerFeatureStrength.toFixed(2),
+            smileScore,
+            sadScore,
+            confidence
+        });
 
         if (isSmile) {
             return {
                 emoji: '😊',
                 label: '笑脸',
                 confidence: Math.round(confidence),
-                reason: '横线探测器在嘴巴上方发现了向上的弧线特征，边缘探测器找到了完整的笑脸轮廓。这是一个开心的表情！'
+                reason: `横线探测器在嘴巴<strong>上方</strong>发现了较强的特征（${upperFeatureStrength.toFixed(1)} > ${lowerFeatureStrength.toFixed(1)}），说明嘴巴向上弯曲。边缘探测器找到了完整的笑脸轮廓。这是一个开心的表情！`
             };
         } else {
             return {
                 emoji: '😢',
                 label: '哭脸',
                 confidence: Math.round(confidence),
-                reason: '横线探测器在嘴巴下方发现了向下的弧线特征，这是一个悲伤的表情。'
+                reason: `横线探测器在嘴巴<strong>下方</strong>发现了较强的特征（下方 ${lowerFeatureStrength.toFixed(1)} > 上方 ${upperFeatureStrength.toFixed(1)}），说明嘴巴向下弯曲。这是一个悲伤的表情。`
             };
         }
     }
