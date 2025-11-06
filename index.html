@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人脸识别小课堂 - 神经网络如何认识表情</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎨 人脸识别小课堂</h1>
+            <p class="subtitle">看看计算机是如何一步一步认出你的表情的！</p>
+        </header>
+
+        <div class="main-content">
+            <!-- 左侧：画板区域 -->
+            <div class="drawing-section">
+                <h2>1️⃣ 画一个表情</h2>
+                <div class="canvas-container">
+                    <canvas id="drawingCanvas" width="280" height="280"></canvas>
+                </div>
+                <div class="controls">
+                    <button id="generateSmile" class="btn btn-primary">😊 生成笑脸</button>
+                    <button id="generateSad" class="btn btn-primary">😢 生成哭脸</button>
+                    <button id="clearCanvas" class="btn btn-secondary">🗑️ 清空</button>
+                </div>
+                <div class="drawing-info">
+                    <p>💡 提示：可以用鼠标画，或者点击按钮生成表情</p>
+                </div>
+            </div>
+
+            <!-- 右侧：处理步骤展示 -->
+            <div class="steps-section">
+                <h2>2️⃣ 计算机如何识别</h2>
+                <button id="startProcess" class="btn btn-success btn-large">🚀 开始识别过程</button>
+                <button id="resetProcess" class="btn btn-secondary" style="display: none;">🔄 重新开始</button>
+
+                <div id="stepsContainer" class="steps-container">
+                    <!-- 步骤会动态生成 -->
+                </div>
+
+                <div id="finalResult" class="final-result" style="display: none;">
+                    <h3>🎉 识别结果</h3>
+                    <div id="resultContent"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 知识卡片 -->
+        <div class="knowledge-section">
+            <h2>🧠 知识小课堂</h2>
+            <div class="knowledge-cards">
+                <div class="knowledge-card">
+                    <h3>🔍 什么是特征探测器？</h3>
+                    <p>想象一下，你有一副特殊的眼镜，戴上它只能看到"横线"，再换一副只能看到"竖线"。特征探测器就像这样的眼镜，每个探测器只负责找一种特定的图案！</p>
+                    <div class="example">
+                        <strong>例如：</strong>
+                        <ul>
+                            <li>探测器1：专门找横线 ━━━</li>
+                            <li>探测器2：专门找竖线 ┃</li>
+                            <li>探测器3：专门找斜线 ╱</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="knowledge-card">
+                    <h3>📦 什么是信息压缩？</h3>
+                    <p>把一张大照片缩小，虽然细节少了，但重要的内容还在。计算机用"取最强信号"的方法，把 2×2 的格子压缩成 1 个格子，这样处理起来更快！</p>
+                    <div class="example">
+                        <strong>例如：</strong> 4个格子 [8, 3, 5, 2] → 取最大值 8
+                    </div>
+                </div>
+
+                <div class="knowledge-card">
+                    <h3>🎯 为什么要分层处理？</h3>
+                    <p>就像搭积木一样：先找到简单的线条，再用线条组成眼睛、嘴巴，最后用这些组成完整的表情。这叫"从简单到复杂"的学习方法！</p>
+                    <div class="example">
+                        <strong>层次：</strong> 线条 → 图案 → 部件 → 完整表情
+                    </div>
+                </div>
+
+                <div class="knowledge-card">
+                    <h3>🤖 计算机如何学习？</h3>
+                    <p>计算机看过成千上万张笑脸和哭脸后，会总结规律："嘴巴向上弯的是笑脸，向下弯的是哭脸"。这个过程叫"训练"，就像你学认字一样！</p>
+                    <div class="example">
+                        <strong>训练过程：</strong> 看大量图片 → 找规律 → 记住规律 → 识别新图片
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>🎓 这个小工具展示了卷积神经网络（CNN）的基本原理</p>
+            <p>真实的人脸识别系统有更多层、更复杂的探测器，但核心思想是一样的！</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
