@@ -556,14 +556,14 @@ class Visualizer {
     }
 
     // 动画展示池化过程
-    static async animatePooling(inputCanvas, outputCanvas, matrix, poolSize, cellSize = 8, speed = 100, useHeatmap = false) {
+    static async animatePooling(inputCanvas, outputCanvas, matrix, poolSize, inputCellSize = 8, outputCellSize = 8, speed = 100, useHeatmap = false) {
         const inputSize = matrix.length;
         const outputSize = Math.floor(inputSize / poolSize);
         const outputMatrix = Array(outputSize).fill(0).map(() => Array(outputSize).fill(0));
 
         const outCtx = outputCanvas.getContext('2d');
-        outputCanvas.width = outputSize * cellSize;
-        outputCanvas.height = outputSize * cellSize;
+        outputCanvas.width = outputSize * outputCellSize;
+        outputCanvas.height = outputSize * outputCellSize;
 
         const inCtx = inputCanvas.getContext('2d');
 
@@ -581,13 +581,13 @@ class Visualizer {
 
                 // 在输入图像上高亮当前池化窗口
                 if (useHeatmap) {
-                    Visualizer.drawHeatmap(inputCanvas, matrix, cellSize, {
+                    Visualizer.drawHeatmap(inputCanvas, matrix, inputCellSize, {
                         x: x * poolSize,
                         y: y * poolSize,
                         size: poolSize
                     });
                 } else {
-                    Visualizer.drawMatrix(inputCanvas, matrix, cellSize, {
+                    Visualizer.drawMatrix(inputCanvas, matrix, inputCellSize, {
                         x: x * poolSize,
                         y: y * poolSize,
                         size: poolSize
@@ -595,7 +595,7 @@ class Visualizer {
                 }
 
                 // 更新输出矩阵
-                Visualizer.drawPartialMatrix(outputCanvas, outputMatrix, cellSize, x, y, useHeatmap);
+                Visualizer.drawPartialMatrix(outputCanvas, outputMatrix, outputCellSize, x, y, useHeatmap);
 
                 await new Promise(resolve => setTimeout(resolve, speed));
             }
@@ -805,7 +805,8 @@ class CNNProcessor {
                 outputCanvas,
                 matrix,
                 2,  // 池化大小
-                12,  // 单元格大小（稍大一些）
+                6,  // 输入单元格较小（26×26矩阵）
+                12, // 输出单元格较大（13×13矩阵）
                 30,  // 速度：30ms 每步
                 true // 输出使用热力图
             );

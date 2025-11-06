@@ -416,6 +416,13 @@ canvas {
     image-rendering: crisp-edges;
 }
 
+/* 防止可视化区域内的canvas溢出 */
+.visualization canvas {
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+}
+
 /* 扫描区域指示 */
 .scanning-indicator {
     display: inline-block;
