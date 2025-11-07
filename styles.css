@@ -803,3 +803,23 @@ canvas {
         transform: scale(1.05);
     }
 }
+
+/* 箭头弹跳动画 */
+@keyframes arrowBounce {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.2);
+    }
+}
+
+/* 淡入动画 */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}

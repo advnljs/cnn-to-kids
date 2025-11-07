@@ -47,11 +47,35 @@ class TrainingDataManager {
     // 保存到localStorage
     saveToLocalStorage() {
         try {
-            // 只保存features和label，imageData太大
-            const samplesToSave = this.samples.map(s => ({
-                features: s.features,
-                label: s.label
-            }));
+            // 保存features、label和简化的imageData（用于可视化）
+            const samplesToSave = this.samples.map(s => {
+                let imageDataToSave = null;
+
+                // 如果有imageData，保存为base64字符串（缩小版）
+                if (s.imageData) {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 80;
+                    canvas.height = 80;
+                    const ctx = canvas.getContext('2d');
+
+                    // 绘制imageData到临时canvas
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = s.imageData.width;
+                    tempCanvas.height = s.imageData.height;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCtx.putImageData(s.imageData, 0, 0);
+
+                    // 缩小并转为base64
+                    ctx.drawImage(tempCanvas, 0, 0, 80, 80);
+                    imageDataToSave = canvas.toDataURL('image/png');
+                }
+
+                return {
+                    features: s.features,
+                    label: s.label,
+                    imageDataURL: imageDataToSave
+                };
+            });
             localStorage.setItem('cnn_training_data', JSON.stringify(samplesToSave));
         } catch (e) {
             console.warn('无法保存训练数据到localStorage:', e);
@@ -64,13 +88,37 @@ class TrainingDataManager {
             const saved = localStorage.getItem('cnn_training_data');
             if (saved) {
                 const loaded = JSON.parse(saved);
-                // 加载的数据没有imageData，但有features和label
-                this.samples = loaded.map(s => ({
-                    features: s.features,
-                    label: s.label,
-                    imageData: null,
-                    timestamp: Date.now()
-                }));
+
+                // 加载数据，如果有imageDataURL则还原为ImageData
+                this.samples = loaded.map(s => {
+                    let imageData = null;
+
+                    // 从base64还原imageData
+                    if (s.imageDataURL) {
+                        try {
+                            const img = new Image();
+                            img.src = s.imageDataURL;
+
+                            const canvas = document.createElement('canvas');
+                            canvas.width = 280;  // 原始大小
+                            canvas.height = 280;
+                            const ctx = canvas.getContext('2d');
+
+                            // 同步绘制（因为是本地data URL）
+                            ctx.drawImage(img, 0, 0, 280, 280);
+                            imageData = ctx.getImageData(0, 0, 280, 280);
+                        } catch (err) {
+                            console.warn('还原imageData失败:', err);
+                        }
+                    }
+
+                    return {
+                        features: s.features,
+                        label: s.label,
+                        imageData: imageData,
+                        timestamp: Date.now()
+                    };
+                });
             }
         } catch (e) {
             console.warn('无法从localStorage加载训练数据:', e);
@@ -1111,39 +1159,176 @@ class CNNProcessor {
         if (!container) return;
 
         container.innerHTML = `
-            <div style="text-align: center; padding: 20px; background: rgba(255,255,255,0.1); border-radius: 10px; margin-top: 15px;">
-                <div style="font-size: 1.2em; margin-bottom: 15px;">
-                    🔍 正在与训练样本比对特征...
+            <div style="padding: 20px; background: rgba(255,255,255,0.1); border-radius: 10px; margin-top: 15px;">
+                <div style="font-size: 1.2em; margin-bottom: 15px; text-align: center;">
+                    🔍 正在与训练样本逐个比对特征...
                 </div>
+
+                <!-- 当前识别的图像 -->
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <div style="font-size: 0.95em; color: rgba(255,255,255,0.9); margin-bottom: 8px;">
+                        📸 当前要识别的图像
+                    </div>
+                    <canvas id="currentImagePreview" style="border: 3px solid #667eea; border-radius: 8px; background: white;"></canvas>
+                </div>
+
+                <!-- 匹配对比区域 -->
+                <div id="matchingComparisonArea" style="display: flex; align-items: center; justify-content: center; gap: 20px; margin: 20px 0; min-height: 120px;">
+                    <div style="text-align: center;">
+                        <canvas id="currentFeaturePreview" width="80" height="80" style="border: 2px solid #667eea; border-radius: 8px; background: white;"></canvas>
+                        <div style="font-size: 0.8em; margin-top: 5px; color: rgba(255,255,255,0.8);">当前图像</div>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; align-items: center;">
+                        <div id="matchingArrow" style="font-size: 2em; color: #ffc107; animation: arrowBounce 1s ease-in-out infinite;">⟷</div>
+                        <div id="distanceValue" style="font-size: 0.85em; color: rgba(255,255,255,0.9); margin-top: 5px;">计算中...</div>
+                    </div>
+
+                    <div id="comparingSampleContainer" style="text-align: center;">
+                        <canvas id="comparingSample" width="80" height="80" style="border: 2px solid #ffc107; border-radius: 8px; background: white;"></canvas>
+                        <div style="font-size: 0.8em; margin-top: 5px; color: rgba(255,255,255,0.8);" id="comparingLabel">训练样本</div>
+                    </div>
+                </div>
+
+                <!-- 进度条 -->
                 <div class="matching-progress">
                     <div class="progress-bar" id="matchingProgressBar"></div>
                 </div>
-                <div id="matchingStatus" style="margin-top: 10px; font-size: 0.9em; color: rgba(255,255,255,0.8);">
-                    正在计算特征距离...
+                <div id="matchingStatus" style="margin-top: 10px; font-size: 0.9em; color: rgba(255,255,255,0.8); text-align: center;">
+                    准备开始对比...
+                </div>
+
+                <!-- 已对比的样本预览 -->
+                <div id="comparedSamplesPreview" style="margin-top: 15px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
                 </div>
             </div>
         `;
+
+        // 绘制当前图像预览
+        const currentCanvas = document.getElementById('currentImagePreview');
+        const currentCtx = currentCanvas.getContext('2d');
+        currentCanvas.width = 100;
+        currentCanvas.height = 100;
+        const currentImageData = this.drawingBoard.getImageData();
+        currentCtx.drawImage(
+            (() => {
+                const temp = document.createElement('canvas');
+                temp.width = currentImageData.width;
+                temp.height = currentImageData.height;
+                const tempCtx = temp.getContext('2d');
+                tempCtx.putImageData(currentImageData, 0, 0);
+                return temp;
+            })(),
+            0, 0, 100, 100
+        );
+
+        // 绘制当前特征预览（小尺寸）
+        const currentFeatureCanvas = document.getElementById('currentFeaturePreview');
+        const currentFeatureCtx = currentFeatureCanvas.getContext('2d');
+        currentFeatureCtx.drawImage(
+            (() => {
+                const temp = document.createElement('canvas');
+                temp.width = currentImageData.width;
+                temp.height = currentImageData.height;
+                const tempCtx = temp.getContext('2d');
+                tempCtx.putImageData(currentImageData, 0, 0);
+                return temp;
+            })(),
+            0, 0, 80, 80
+        );
 
         const samples = this.trainingManager.getSamples();
         const currentFeatures = KNNClassifier.flattenFeatures(poolResults);
         const progressBar = document.getElementById('matchingProgressBar');
         const status = document.getElementById('matchingStatus');
+        const comparingCanvas = document.getElementById('comparingSample');
+        const comparingCtx = comparingCanvas.getContext('2d');
+        const comparingLabel = document.getElementById('comparingLabel');
+        const distanceValue = document.getElementById('distanceValue');
+        const comparedPreview = document.getElementById('comparedSamplesPreview');
+
+        let distances = [];
 
         // 动画展示匹配过程
         for (let i = 0; i < samples.length; i++) {
             const progress = ((i + 1) / samples.length) * 100;
             progressBar.style.width = `${progress}%`;
 
-            const distance = KNNClassifier.distance(currentFeatures, samples[i].features);
+            const sample = samples[i];
+            const distance = KNNClassifier.distance(currentFeatures, sample.features);
             const similarity = Math.max(0, 100 - distance * 10).toFixed(1);
 
-            status.innerHTML = `对比样本 ${i + 1}/${samples.length} - 相似度: ${similarity}%`;
+            distances.push({ index: i, distance, similarity, label: sample.label });
 
-            await this.delay(100);
+            // 绘制正在对比的训练样本
+            comparingCtx.fillStyle = 'white';
+            comparingCtx.fillRect(0, 0, 80, 80);
+
+            if (sample.imageData) {
+                comparingCtx.drawImage(
+                    (() => {
+                        const temp = document.createElement('canvas');
+                        temp.width = sample.imageData.width;
+                        temp.height = sample.imageData.height;
+                        const tempCtx = temp.getContext('2d');
+                        tempCtx.putImageData(sample.imageData, 0, 0);
+                        return temp;
+                    })(),
+                    0, 0, 80, 80
+                );
+            } else {
+                comparingCtx.fillStyle = '#f0f0f0';
+                comparingCtx.fillRect(0, 0, 80, 80);
+                comparingCtx.fillStyle = '#666';
+                comparingCtx.font = '12px Arial';
+                comparingCtx.textAlign = 'center';
+                comparingCtx.fillText('样本' + (i+1), 40, 40);
+            }
+
+            comparingLabel.textContent = `${sample.label === 'smile' ? '😊' : '😢'} 样本 ${i + 1}`;
+            distanceValue.innerHTML = `距离: <strong>${distance.toFixed(2)}</strong><br>相似度: <strong>${similarity}%</strong>`;
+            status.innerHTML = `🔍 对比样本 ${i + 1}/${samples.length} - 相似度: <strong style="color: #ffc107;">${similarity}%</strong>`;
+
+            // 添加到已对比列表（小缩略图）
+            const miniCanvas = document.createElement('canvas');
+            miniCanvas.width = 40;
+            miniCanvas.height = 40;
+            miniCanvas.style.border = `2px solid ${similarity > 80 ? '#28a745' : similarity > 60 ? '#ffc107' : '#6c757d'}`;
+            miniCanvas.style.borderRadius = '6px';
+            miniCanvas.style.opacity = '0';
+            miniCanvas.style.animation = 'fadeIn 0.3s ease forwards';
+            miniCanvas.title = `样本${i+1}: ${similarity}%相似`;
+
+            const miniCtx = miniCanvas.getContext('2d');
+            if (sample.imageData) {
+                miniCtx.drawImage(
+                    (() => {
+                        const temp = document.createElement('canvas');
+                        temp.width = sample.imageData.width;
+                        temp.height = sample.imageData.height;
+                        const tempCtx = temp.getContext('2d');
+                        tempCtx.putImageData(sample.imageData, 0, 0);
+                        return temp;
+                    })(),
+                    0, 0, 40, 40
+                );
+            }
+            comparedPreview.appendChild(miniCanvas);
+
+            await this.delay(200);
         }
 
-        status.innerHTML = `✅ 对比完成！找到最相似的样本`;
-        await this.delay(500);
+        // 排序找出最相似的
+        distances.sort((a, b) => a.distance - b.distance);
+        const topMatch = distances[0];
+
+        status.innerHTML = `✅ 对比完成！找到最相似样本（相似度: <strong style="color: #28a745;">${topMatch.similarity}%</strong>）`;
+
+        // 高亮最相似的样本
+        comparingCanvas.style.border = '3px solid #28a745';
+        comparingCanvas.style.boxShadow = '0 0 20px rgba(40, 167, 69, 0.6)';
+
+        await this.delay(800);
     }
 
     // 显示最相似的样本
@@ -1153,9 +1338,10 @@ class CNNProcessor {
         let html = `
             <div style="margin-top: 25px; padding: 20px; background: rgba(0,0,0,0.1); border-radius: 10px;">
                 <h4 style="margin: 0 0 15px 0; font-size: 1.2em;">🎯 最相似的训练样本（K=${neighbors.length}）</h4>
-                <div class="similar-samples-grid">
+                <div class="similar-samples-grid" id="similarSamplesContainer">
         `;
 
+        // 先创建占位符
         for (let i = 0; i < neighbors.length; i++) {
             const neighbor = neighbors[i];
             const sample = samples[neighbor.index];
@@ -1165,6 +1351,9 @@ class CNNProcessor {
             html += `
                 <div class="similar-sample-item ${isMatch ? 'match' : 'nomatch'}" style="animation-delay: ${i * 0.2}s;">
                     <div class="sample-rank">#${i + 1}</div>
+                    <div style="margin: 15px 0;">
+                        <canvas id="similarSampleCanvas${i}" width="100" height="100" style="border-radius: 8px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.2);"></canvas>
+                    </div>
                     <div class="sample-emoji">${sample.label === 'smile' ? '😊' : '😢'}</div>
                     <div class="sample-similarity">
                         <div class="similarity-bar-container">
@@ -1188,6 +1377,41 @@ class CNNProcessor {
                 </div>
             </div>
         `;
+
+        // 需要异步绘制图像
+        setTimeout(() => {
+            for (let i = 0; i < neighbors.length; i++) {
+                const neighbor = neighbors[i];
+                const sample = samples[neighbor.index];
+                const canvas = document.getElementById(`similarSampleCanvas${i}`);
+
+                if (canvas && sample.imageData) {
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(
+                        (() => {
+                            const temp = document.createElement('canvas');
+                            temp.width = sample.imageData.width;
+                            temp.height = sample.imageData.height;
+                            const tempCtx = temp.getContext('2d');
+                            tempCtx.putImageData(sample.imageData, 0, 0);
+                            return temp;
+                        })(),
+                        0, 0, 100, 100
+                    );
+                } else if (canvas) {
+                    // 如果没有imageData，显示占位符
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#f0f0f0';
+                    ctx.fillRect(0, 0, 100, 100);
+                    ctx.fillStyle = '#999';
+                    ctx.font = '14px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('训练样本', 50, 45);
+                    ctx.fillText(`#${neighbor.index + 1}`, 50, 65);
+                }
+            }
+        }, 100);
 
         return html;
     }
