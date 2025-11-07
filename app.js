@@ -1591,6 +1591,9 @@ class CNNProcessor {
     async showSimilarSamples(neighbors, predictedLabel) {
         const samples = this.trainingManager.getSamples();
 
+        // 将中文标签转换为英文
+        const predictedLabelEn = predictedLabel === '笑脸' ? 'smile' : 'sad';
+
         let html = `
             <div style="margin-top: 25px; padding: 20px; background: rgba(248, 249, 250, 0.95); border-radius: 10px; border: 2px solid rgba(102, 126, 234, 0.3); box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
                 <h4 style="margin: 0 0 15px 0; font-size: 1.2em; color: #333; text-align: center;">🎯 最相似的训练样本（K=${neighbors.length}）</h4>
@@ -1602,7 +1605,7 @@ class CNNProcessor {
             const neighbor = neighbors[i];
             const sample = samples[neighbor.index];
             const similarity = Math.max(0, 100 - neighbor.distance * 10).toFixed(1);
-            const isMatch = sample.label === predictedLabel;
+            const isMatch = neighbor.label === predictedLabelEn;
 
             html += `
                 <div class="similar-sample-item ${isMatch ? 'match' : 'nomatch'}" style="animation-delay: ${i * 0.2}s;">
@@ -1629,7 +1632,7 @@ class CNNProcessor {
                     💡 <strong style="color: #667eea;">工作原理：</strong><br>
                     • 计算当前图像与每个训练样本的<strong>特征距离</strong>（${neighbors.length}个最近邻）<br>
                     • 距离越小 = 特征越相似 = 相似度越高<br>
-                    • <strong style="color: #28a745;">${neighbors.filter(n => samples[n.index].label === predictedLabel).length} 个样本</strong>投票 "${predictedLabel === 'smile' ? '笑脸' : '哭脸'}"，所以最终结果是<strong style="color: #667eea;">${predictedLabel === 'smile' ? '笑脸' : '哭脸'}</strong>！
+                    • <strong style="color: #28a745;">${neighbors.filter(n => n.label === predictedLabelEn).length} 个样本</strong>投票 "${predictedLabel}"，所以最终结果是<strong style="color: #667eea;">${predictedLabel}</strong>！
                 </div>
             </div>
         `;
