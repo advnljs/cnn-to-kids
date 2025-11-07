@@ -457,3 +457,349 @@ canvas {
     flex: 1;
     min-width: 250px;
 }
+
+/* 训练模式样式 */
+.mode-switch {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    background: white;
+    padding: 5px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.mode-btn {
+    flex: 1;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 600;
+    background: transparent;
+    color: #666;
+}
+
+.mode-btn.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+.mode-btn:hover:not(.active) {
+    background: #f0f0f0;
+}
+
+.training-controls {
+    margin-top: 20px;
+    padding: 15px;
+    background: #fff3cd;
+    border-radius: 10px;
+    border: 2px solid #ffc107;
+}
+
+.training-controls h3 {
+    color: #856404;
+    margin-bottom: 12px;
+    font-size: 1.1em;
+}
+
+.label-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.btn-label {
+    flex: 1;
+    font-size: 18px;
+    padding: 15px;
+}
+
+.btn-smile {
+    background: #28a745;
+    color: white;
+}
+
+.btn-smile:hover {
+    background: #218838;
+}
+
+.btn-sad {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-sad:hover {
+    background: #5a6268;
+}
+
+.training-stats {
+    background: white;
+    padding: 12px;
+    border-radius: 8px;
+    color: #856404;
+    font-size: 14px;
+}
+
+.training-stats p {
+    margin: 5px 0;
+}
+
+.training-stats span {
+    font-weight: bold;
+    color: #667eea;
+}
+
+.training-samples {
+    margin-top: 20px;
+    padding: 15px;
+    background: white;
+    border-radius: 10px;
+    border: 2px solid #667eea;
+}
+
+.training-samples h3 {
+    color: #667eea;
+    margin-bottom: 10px;
+}
+
+.btn-small {
+    padding: 8px 15px;
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+.samples-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.sample-item {
+    position: relative;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 5px;
+    text-align: center;
+    border: 2px solid #ddd;
+    transition: all 0.3s ease;
+}
+
+.sample-item:hover {
+    border-color: #667eea;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.sample-canvas {
+    width: 100%;
+    height: 70px;
+    border-radius: 4px;
+}
+
+.sample-label {
+    font-size: 20px;
+    margin-top: 5px;
+}
+
+.sample-delete {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 0 8px 0 8px;
+    width: 24px;
+    height: 24px;
+    font-size: 12px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.sample-item:hover .sample-delete {
+    display: flex;
+}
+
+.sample-delete:hover {
+    background: #c82333;
+}
+
+.training-tip {
+    margin-top: 15px;
+    padding: 12px;
+    background: #e7f3ff;
+    border-radius: 8px;
+    border-left: 4px solid #0066cc;
+    color: #004085;
+    font-size: 14px;
+}
+
+.training-tip strong {
+    color: #0066cc;
+}
+
+.training-tip ul {
+    color: #004085;
+}
+
+/* 特征匹配可视化样式 */
+.matching-animation {
+    margin-top: 15px;
+}
+
+.matching-progress {
+    width: 100%;
+    height: 30px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 15px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    transition: width 0.3s ease;
+    width: 0%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    box-shadow: 0 2px 10px rgba(102, 126, 234, 0.5);
+}
+
+.similar-samples-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.similar-sample-item {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    padding: 15px;
+    position: relative;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+    opacity: 0;
+    animation: fadeInScale 0.5s ease forwards;
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.similar-sample-item.match {
+    border-color: #28a745;
+    background: rgba(40, 167, 69, 0.15);
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+}
+
+.similar-sample-item.nomatch {
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.similar-sample-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sample-rank {
+    position: absolute;
+    top: -10px;
+    left: 10px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.9em;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.sample-emoji {
+    font-size: 3em;
+    text-align: center;
+    margin: 10px 0;
+}
+
+.sample-similarity {
+    margin: 15px 0;
+}
+
+.similarity-bar-container {
+    width: 100%;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.similarity-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
+    border-radius: 10px;
+    transition: width 1s ease;
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.4);
+}
+
+.similarity-text {
+    text-align: center;
+    font-weight: bold;
+    font-size: 0.95em;
+    color: rgba(255, 255, 255, 0.95);
+}
+
+.sample-distance {
+    text-align: center;
+    font-size: 0.85em;
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: 8px;
+}
+
+.match-badge {
+    position: absolute;
+    top: -10px;
+    right: 10px;
+    background: #28a745;
+    color: white;
+    padding: 5px 12px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.4);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+}

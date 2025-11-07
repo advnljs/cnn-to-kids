@@ -16,17 +16,58 @@
         <div class="main-content">
             <!-- 左侧：画板区域 -->
             <div class="drawing-section">
-                <h2>1️⃣ 画一个表情</h2>
+                <!-- 模式切换 -->
+                <div class="mode-switch">
+                    <button id="recognitionMode" class="mode-btn active">🔍 识别模式</button>
+                    <button id="trainingMode" class="mode-btn">🎓 训练模式</button>
+                </div>
+
+                <h2 id="drawingSectionTitle">1️⃣ 画一个表情</h2>
                 <div class="canvas-container">
                     <canvas id="drawingCanvas" width="280" height="280"></canvas>
                 </div>
                 <div class="controls">
-                    <button id="generateSmile" class="btn btn-primary">😊 生成笑脸</button>
-                    <button id="generateSad" class="btn btn-primary">😢 生成哭脸</button>
+                    <button id="generateSmile" class="btn btn-primary">😊 完整笑脸</button>
+                    <button id="generateSad" class="btn btn-primary">😢 完整哭脸</button>
                     <button id="clearCanvas" class="btn btn-secondary">🗑️ 清空</button>
                 </div>
+                <div class="controls" style="margin-top: 5px;">
+                    <button id="generateSimpleSmile" class="btn btn-primary" style="font-size: 14px;">😊 简化笑脸</button>
+                    <button id="generateSimpleSad" class="btn btn-primary" style="font-size: 14px;">😢 简化哭脸</button>
+                </div>
+
+                <!-- 训练模式专用按钮 -->
+                <div id="trainingControls" class="training-controls" style="display: none;">
+                    <h3>为这个表情标注：</h3>
+                    <div class="label-buttons">
+                        <button id="labelSmile" class="btn btn-label btn-smile">😊 这是笑脸</button>
+                        <button id="labelSad" class="btn btn-label btn-sad">😢 这是哭脸</button>
+                    </div>
+                    <div class="training-stats">
+                        <p>已收集训练样本：<span id="trainingCount">0</span> 个</p>
+                        <p>笑脸：<span id="smileCount">0</span> 个 | 哭脸：<span id="sadCount">0</span> 个</p>
+                    </div>
+                </div>
+
                 <div class="drawing-info">
-                    <p>💡 提示：可以用鼠标画，或者点击按钮生成表情</p>
+                    <p id="modeInfo">💡 提示：可以用鼠标画，或者点击按钮生成表情</p>
+                </div>
+
+                <!-- 训练模式提示 -->
+                <div id="trainingTip" class="training-tip" style="display: none;">
+                    <strong>⚠️ 训练建议：</strong>
+                    <ul style="margin: 5px 0 0 20px; font-size: 13px;">
+                        <li>每种表情至少需要<strong>2种风格</strong>（完整+简化）</li>
+                        <li>样本多样化能提高识别准确率</li>
+                        <li>推荐：3个完整+3个简化，每种表情</li>
+                    </ul>
+                </div>
+
+                <!-- 训练样本展示 -->
+                <div id="trainingSamples" class="training-samples" style="display: none;">
+                    <h3>训练样本</h3>
+                    <button id="clearTrainingData" class="btn btn-secondary btn-small">清空所有训练数据</button>
+                    <div id="samplesGrid" class="samples-grid"></div>
                 </div>
             </div>
 
@@ -85,6 +126,22 @@
                     <p>计算机看过成千上万张笑脸和哭脸后，会总结规律："嘴巴向上弯的是笑脸，向下弯的是哭脸"。这个过程叫"训练"，就像你学认字一样！</p>
                     <div class="example">
                         <strong>训练过程：</strong> 看大量图片 → 找规律 → 记住规律 → 识别新图片
+                    </div>
+                </div>
+
+                <div class="knowledge-card">
+                    <h3>🎓 什么是训练模式？</h3>
+                    <p>在训练模式下，你可以教计算机认识表情！画一个笑脸，告诉它"这是笑脸"；画一个哭脸，告诉它"这是哭脸"。当你提供的例子越多，计算机就越聪明！</p>
+                    <div class="example">
+                        <strong>建议：</strong> 至少提供每种表情 3-5 个不同的例子，让计算机学得更好！
+                    </div>
+                </div>
+
+                <div class="knowledge-card">
+                    <h3>🔬 为什么要用区域平均采样？</h3>
+                    <p>画布是280×280像素，但要缩小到28×28（缩小10倍！）。如果只取一个点，细线条可能会消失。<strong>区域平均采样</strong>会把10×10区域内的所有像素取平均，这样线条不会丢失！</p>
+                    <div class="example">
+                        <strong>比喻：</strong> 就像把一张大照片缩小，不能只取几个点，要把每一小块的信息都平均起来，才不会失真！
                     </div>
                 </div>
             </div>

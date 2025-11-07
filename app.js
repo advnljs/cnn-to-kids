@@ -1,3 +1,164 @@
+// 训练数据管理类
+class TrainingDataManager {
+    constructor() {
+        this.samples = [];  // 存储训练样本 {features, label, imageData}
+        this.loadFromLocalStorage();
+    }
+
+    // 添加训练样本
+    addSample(features, label, imageData) {
+        this.samples.push({
+            features: features,
+            label: label,  // 'smile' 或 'sad'
+            imageData: imageData,  // 用于显示缩略图
+            timestamp: Date.now()
+        });
+        this.saveToLocalStorage();
+    }
+
+    // 删除样本
+    removeSample(index) {
+        this.samples.splice(index, 1);
+        this.saveToLocalStorage();
+    }
+
+    // 清空所有样本
+    clearAll() {
+        this.samples = [];
+        this.saveToLocalStorage();
+    }
+
+    // 获取所有样本
+    getSamples() {
+        return this.samples;
+    }
+
+    // 获取统计信息
+    getStats() {
+        const smileCount = this.samples.filter(s => s.label === 'smile').length;
+        const sadCount = this.samples.filter(s => s.label === 'sad').length;
+        return {
+            total: this.samples.length,
+            smileCount,
+            sadCount
+        };
+    }
+
+    // 保存到localStorage
+    saveToLocalStorage() {
+        try {
+            // 只保存features和label，imageData太大
+            const samplesToSave = this.samples.map(s => ({
+                features: s.features,
+                label: s.label
+            }));
+            localStorage.setItem('cnn_training_data', JSON.stringify(samplesToSave));
+        } catch (e) {
+            console.warn('无法保存训练数据到localStorage:', e);
+        }
+    }
+
+    // 从localStorage加载
+    loadFromLocalStorage() {
+        try {
+            const saved = localStorage.getItem('cnn_training_data');
+            if (saved) {
+                const loaded = JSON.parse(saved);
+                // 加载的数据没有imageData，但有features和label
+                this.samples = loaded.map(s => ({
+                    features: s.features,
+                    label: s.label,
+                    imageData: null,
+                    timestamp: Date.now()
+                }));
+            }
+        } catch (e) {
+            console.warn('无法从localStorage加载训练数据:', e);
+        }
+    }
+}
+
+// KNN分类器
+class KNNClassifier {
+    constructor(k = 3) {
+        this.k = k;  // K近邻的K值
+    }
+
+    // 计算两个特征向量之间的欧氏距离
+    static distance(features1, features2) {
+        let sum = 0;
+        for (let i = 0; i < features1.length; i++) {
+            const diff = features1[i] - features2[i];
+            sum += diff * diff;
+        }
+        return Math.sqrt(sum);
+    }
+
+    // 将矩阵展平为特征向量
+    static flattenFeatures(poolResults) {
+        const features = [];
+        // 按照固定顺序展平3个特征图
+        for (let name of ['horizontal', 'vertical', 'edge']) {
+            const matrix = poolResults[name];
+            for (let row of matrix) {
+                for (let val of row) {
+                    features.push(val);
+                }
+            }
+        }
+        return features;
+    }
+
+    // 预测
+    predict(features, trainingSamples) {
+        if (trainingSamples.length === 0) {
+            return null;
+        }
+
+        // 计算与所有训练样本的距离
+        const distances = trainingSamples.map((sample, index) => ({
+            index,
+            label: sample.label,
+            distance: KNNClassifier.distance(features, sample.features)
+        }));
+
+        // 按距离排序
+        distances.sort((a, b) => a.distance - b.distance);
+
+        // 取前K个最近的邻居
+        const k = Math.min(this.k, distances.length);
+        const neighbors = distances.slice(0, k);
+
+        // 统计标签
+        const labelCounts = {};
+        let closestDistance = neighbors[0].distance;
+
+        neighbors.forEach(neighbor => {
+            labelCounts[neighbor.label] = (labelCounts[neighbor.label] || 0) + 1;
+        });
+
+        // 找出最多的标签
+        let maxCount = 0;
+        let predictedLabel = null;
+        for (let label in labelCounts) {
+            if (labelCounts[label] > maxCount) {
+                maxCount = labelCounts[label];
+                predictedLabel = label;
+            }
+        }
+
+        // 计算置信度
+        const confidence = Math.round((maxCount / k) * 100);
+
+        return {
+            label: predictedLabel,
+            confidence: confidence,
+            neighbors: neighbors,
+            closestDistance: closestDistance
+        };
+    }
+}
+
 // 画板管理类
 class DrawingBoard {
     constructor(canvasId) {
@@ -127,6 +288,58 @@ class DrawingBoard {
         this.ctx.stroke();
     }
 
+    // 生成简化笑脸（无圆圈）
+    generateSimpleSmile() {
+        this.clear();
+        this.ctx.strokeStyle = 'black';
+        this.ctx.lineWidth = 8;
+
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+
+        // 画左眼
+        this.ctx.beginPath();
+        this.ctx.arc(centerX - 35, centerY - 30, 12, 0, Math.PI * 2);
+        this.ctx.fillStyle = 'black';
+        this.ctx.fill();
+
+        // 画右眼
+        this.ctx.beginPath();
+        this.ctx.arc(centerX + 35, centerY - 30, 12, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // 画微笑的嘴巴
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY + 10, 60, 0.2 * Math.PI, 0.8 * Math.PI);
+        this.ctx.stroke();
+    }
+
+    // 生成简化哭脸（无圆圈）
+    generateSimpleSad() {
+        this.clear();
+        this.ctx.strokeStyle = 'black';
+        this.ctx.lineWidth = 8;
+
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+
+        // 画左眼
+        this.ctx.beginPath();
+        this.ctx.arc(centerX - 35, centerY - 30, 12, 0, Math.PI * 2);
+        this.ctx.fillStyle = 'black';
+        this.ctx.fill();
+
+        // 画右眼
+        this.ctx.beginPath();
+        this.ctx.arc(centerX + 35, centerY - 30, 12, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // 画悲伤的嘴巴（倒转的弧）
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY + 70, 60, 1.2 * Math.PI, 1.8 * Math.PI);
+        this.ctx.stroke();
+    }
+
     getImageData() {
         return this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
     }
@@ -134,7 +347,7 @@ class DrawingBoard {
 
 // 图像处理类
 class ImageProcessor {
-    // 将图像数据转换为灰度矩阵
+    // 将图像数据转换为灰度矩阵（使用区域平均采样，减少失真）
     static toGrayscaleMatrix(imageData, targetSize = 28) {
         const { width, height, data } = imageData;
         const matrix = [];
@@ -146,19 +359,33 @@ class ImageProcessor {
         for (let y = 0; y < targetSize; y++) {
             const row = [];
             for (let x = 0; x < targetSize; x++) {
-                // 采样原图像中对应的像素
-                const srcX = Math.floor(x * scaleX);
-                const srcY = Math.floor(y * scaleY);
-                const idx = (srcY * width + srcX) * 4;
+                // 计算源图像中对应的区域范围
+                const srcXStart = Math.floor(x * scaleX);
+                const srcXEnd = Math.floor((x + 1) * scaleX);
+                const srcYStart = Math.floor(y * scaleY);
+                const srcYEnd = Math.floor((y + 1) * scaleY);
 
-                // 转换为灰度值 (0-255)
-                const r = data[idx];
-                const g = data[idx + 1];
-                const b = data[idx + 2];
-                const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                // 区域平均采样：对源区域内的所有像素取平均值
+                let graySum = 0;
+                let count = 0;
 
-                // 归一化到 0-1
-                row.push(gray / 255);
+                for (let sy = srcYStart; sy < srcYEnd; sy++) {
+                    for (let sx = srcXStart; sx < srcXEnd; sx++) {
+                        if (sx < width && sy < height) {
+                            const idx = (sy * width + sx) * 4;
+                            const r = data[idx];
+                            const g = data[idx + 1];
+                            const b = data[idx + 2];
+                            const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                            graySum += gray;
+                            count++;
+                        }
+                    }
+                }
+
+                // 计算平均灰度值并归一化到 0-1
+                const avgGray = count > 0 ? graySum / count : 255;
+                row.push(avgGray / 255);
             }
             matrix.push(row);
         }
@@ -613,6 +840,11 @@ class CNNProcessor {
         this.finalResult = document.getElementById('finalResult');
         this.resultContent = document.getElementById('resultContent');
 
+        // 训练相关
+        this.trainingManager = new TrainingDataManager();
+        this.classifier = new KNNClassifier(3);
+        this.lastPoolResults = null;  // 保存最后一次的池化结果，用于训练
+
         // 定义特征探测器（卷积核）
         this.kernels = {
             horizontal: [
@@ -652,6 +884,7 @@ class CNNProcessor {
 
         // 步骤3：池化 - 信息压缩（用热力图显示）
         const poolResults = await this.showStep3(convResults);
+        this.lastPoolResults = poolResults;  // 保存用于训练
         await this.delay(1500);
 
         // 步骤4：分类判断
@@ -820,24 +1053,36 @@ class CNNProcessor {
     async showStep4(originalMatrix, poolResults) {
         const step = document.createElement('div');
         step.className = 'step';
+
+        // 检查是否使用训练模式
+        const trainingSamples = this.trainingManager.getSamples();
+        const useTraining = trainingSamples.length >= 2;
+
         step.innerHTML = `
             <h3>🎯 步骤 4：最终判断</h3>
             <div class="step-description">
-                现在把所有提取的特征综合起来判断：这是什么表情？<br>
-                计算机会根据它"学过"的规律来做判断：<br>
-                • 如果横线探测器在嘴巴<strong>上半部</strong>找到更强的特征 → 笑脸 😊<br>
-                • 如果在嘴巴<strong>下半部</strong>找到更强的特征 → 哭脸 😢
+                ${useTraining ?
+                    '现在使用<strong>KNN算法</strong>，找到最相似的训练样本！<br>计算机会把当前图像的特征与所有训练样本对比，找出最像的几个。' :
+                    '现在把所有提取的特征综合起来判断：这是什么表情？<br>计算机会根据它"学过"的规律来做判断：<br>• 如果横线探测器在嘴巴<strong>上半部</strong>找到更强的特征 → 笑脸 😊<br>• 如果在嘴巴<strong>下半部</strong>找到更强的特征 → 哭脸 😢'
+                }
             </div>
+            ${useTraining ? '<div id="matchingAnimation" class="matching-animation"></div>' : ''}
         `;
         this.stepsContainer.appendChild(step);
 
         await this.delay(500);
 
+        // 如果使用训练模式，显示匹配动画
+        if (useTraining) {
+            await this.showMatchingAnimation(poolResults);
+        }
+
         // 分类逻辑
         const result = this.classify(originalMatrix, poolResults);
 
         this.finalResult.style.display = 'block';
-        this.resultContent.innerHTML = `
+
+        let resultHTML = `
             <div style="font-size: 3em; margin: 20px 0;">${result.emoji}</div>
             <div style="font-size: 1.5em; margin-bottom: 20px;">
                 识别结果：<strong>${result.label}</strong>
@@ -851,11 +1096,132 @@ class CNNProcessor {
                 ${result.reason}
             </div>
         `;
+
+        // 如果使用了训练模式，显示最相似的样本
+        if (result.usedTraining && result.neighbors) {
+            resultHTML += await this.showSimilarSamples(result.neighbors, result.label);
+        }
+
+        this.resultContent.innerHTML = resultHTML;
+    }
+
+    // 显示匹配动画
+    async showMatchingAnimation(poolResults) {
+        const container = document.getElementById('matchingAnimation');
+        if (!container) return;
+
+        container.innerHTML = `
+            <div style="text-align: center; padding: 20px; background: rgba(255,255,255,0.1); border-radius: 10px; margin-top: 15px;">
+                <div style="font-size: 1.2em; margin-bottom: 15px;">
+                    🔍 正在与训练样本比对特征...
+                </div>
+                <div class="matching-progress">
+                    <div class="progress-bar" id="matchingProgressBar"></div>
+                </div>
+                <div id="matchingStatus" style="margin-top: 10px; font-size: 0.9em; color: rgba(255,255,255,0.8);">
+                    正在计算特征距离...
+                </div>
+            </div>
+        `;
+
+        const samples = this.trainingManager.getSamples();
+        const currentFeatures = KNNClassifier.flattenFeatures(poolResults);
+        const progressBar = document.getElementById('matchingProgressBar');
+        const status = document.getElementById('matchingStatus');
+
+        // 动画展示匹配过程
+        for (let i = 0; i < samples.length; i++) {
+            const progress = ((i + 1) / samples.length) * 100;
+            progressBar.style.width = `${progress}%`;
+
+            const distance = KNNClassifier.distance(currentFeatures, samples[i].features);
+            const similarity = Math.max(0, 100 - distance * 10).toFixed(1);
+
+            status.innerHTML = `对比样本 ${i + 1}/${samples.length} - 相似度: ${similarity}%`;
+
+            await this.delay(100);
+        }
+
+        status.innerHTML = `✅ 对比完成！找到最相似的样本`;
+        await this.delay(500);
+    }
+
+    // 显示最相似的样本
+    async showSimilarSamples(neighbors, predictedLabel) {
+        const samples = this.trainingManager.getSamples();
+
+        let html = `
+            <div style="margin-top: 25px; padding: 20px; background: rgba(0,0,0,0.1); border-radius: 10px;">
+                <h4 style="margin: 0 0 15px 0; font-size: 1.2em;">🎯 最相似的训练样本（K=${neighbors.length}）</h4>
+                <div class="similar-samples-grid">
+        `;
+
+        for (let i = 0; i < neighbors.length; i++) {
+            const neighbor = neighbors[i];
+            const sample = samples[neighbor.index];
+            const similarity = Math.max(0, 100 - neighbor.distance * 10).toFixed(1);
+            const isMatch = sample.label === predictedLabel;
+
+            html += `
+                <div class="similar-sample-item ${isMatch ? 'match' : 'nomatch'}" style="animation-delay: ${i * 0.2}s;">
+                    <div class="sample-rank">#${i + 1}</div>
+                    <div class="sample-emoji">${sample.label === 'smile' ? '😊' : '😢'}</div>
+                    <div class="sample-similarity">
+                        <div class="similarity-bar-container">
+                            <div class="similarity-bar" style="width: ${similarity}%;"></div>
+                        </div>
+                        <div class="similarity-text">${similarity}% 相似</div>
+                    </div>
+                    <div class="sample-distance">距离: ${neighbor.distance.toFixed(2)}</div>
+                    ${isMatch ? '<div class="match-badge">✓ 匹配</div>' : ''}
+                </div>
+            `;
+        }
+
+        html += `
+                </div>
+                <div style="margin-top: 15px; font-size: 0.9em; color: rgba(255,255,255,0.9); line-height: 1.6;">
+                    💡 <strong>工作原理：</strong><br>
+                    • 计算当前图像与每个训练样本的<strong>特征距离</strong>（${neighbors.length}个最近邻）<br>
+                    • 距离越小 = 特征越相似 = 相似度越高<br>
+                    • ${neighbors.filter(n => samples[n.index].label === predictedLabel).length} 个样本投票 "${predictedLabel === 'smile' ? '笑脸' : '哭脸'}"，所以最终结果是<strong>${predictedLabel === 'smile' ? '笑脸' : '哭脸'}</strong>！
+                </div>
+            </div>
+        `;
+
+        return html;
     }
 
     classify(originalMatrix, features) {
         const size = originalMatrix.length;
 
+        // 优先使用训练好的KNN模型
+        const trainingSamples = this.trainingManager.getSamples();
+        if (trainingSamples.length >= 2) {
+            // 至少有2个样本才使用KNN
+            const featureVector = KNNClassifier.flattenFeatures(features);
+            const prediction = this.classifier.predict(featureVector, trainingSamples);
+
+            if (prediction) {
+                const isSmile = prediction.label === 'smile';
+                const emoji = isSmile ? '😊' : '😢';
+                const labelText = isSmile ? '笑脸' : '哭脸';
+
+                return {
+                    emoji: emoji,
+                    label: labelText,
+                    confidence: prediction.confidence,
+                    reason: `🎓 <strong>使用你训练的模型！</strong><br>` +
+                            `计算机找到了 <strong>${prediction.neighbors.length} 个最相似的训练样本</strong>，` +
+                            `其中 ${prediction.neighbors.filter(n => n.label === prediction.label).length} 个是${labelText}。<br>` +
+                            `最相似样本的距离：${prediction.closestDistance.toFixed(2)}`,
+                    usedTraining: true,
+                    neighbors: prediction.neighbors  // 传递neighbors信息用于可视化
+                };
+            }
+        }
+
+        // 如果没有训练数据，使用原来的规则
         // 简化策略：主要使用横线探测器的特征分布
         // 笑脸：嘴巴区域的上部有横线（嘴角向上）
         // 哭脸：嘴巴区域的下部有横线（嘴角向下）
@@ -971,12 +1337,196 @@ class CNNProcessor {
     delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
+
+    // 添加训练样本（在训练模式下使用）
+    async addTrainingSample(label) {
+        if (!this.lastPoolResults) {
+            // 如果还没有处理过图像，先处理一次
+            const imageData = this.drawingBoard.getImageData();
+            const grayMatrix = ImageProcessor.toGrayscaleMatrix(imageData, 28);
+            const convResults = {};
+
+            for (let [name, kernel] of Object.entries(this.kernels)) {
+                const convResult = ImageProcessor.convolve(grayMatrix, kernel);
+                convResults[name] = ImageProcessor.normalize(convResult);
+            }
+
+            const poolResults = {};
+            for (let [name, matrix] of Object.entries(convResults)) {
+                poolResults[name] = ImageProcessor.maxPool(matrix, 2);
+            }
+
+            this.lastPoolResults = poolResults;
+        }
+
+        // 提取特征向量
+        const features = KNNClassifier.flattenFeatures(this.lastPoolResults);
+
+        // 获取当前画布的图像数据（用于显示缩略图）
+        const imageData = this.drawingBoard.getImageData();
+
+        // 添加到训练数据
+        this.trainingManager.addSample(features, label, imageData);
+
+        // 清空lastPoolResults，准备下一次
+        this.lastPoolResults = null;
+
+        return this.trainingManager.getStats();
+    }
+
+    // 获取训练统计
+    getTrainingStats() {
+        return this.trainingManager.getStats();
+    }
+
+    // 清空训练数据
+    clearTrainingData() {
+        this.trainingManager.clearAll();
+    }
+
+    // 获取所有训练样本
+    getTrainingSamples() {
+        return this.trainingManager.getSamples();
+    }
+
+    // 删除训练样本
+    removeTrainingSample(index) {
+        this.trainingManager.removeSample(index);
+    }
 }
 
 // 主程序
 document.addEventListener('DOMContentLoaded', () => {
     const drawingBoard = new DrawingBoard('drawingCanvas');
     const processor = new CNNProcessor(drawingBoard);
+
+    let currentMode = 'recognition';  // 'recognition' 或 'training'
+
+    // 更新训练样本显示
+    function updateTrainingSamplesDisplay() {
+        const samples = processor.getTrainingSamples();
+        const samplesGrid = document.getElementById('samplesGrid');
+        samplesGrid.innerHTML = '';
+
+        samples.forEach((sample, index) => {
+            const sampleDiv = document.createElement('div');
+            sampleDiv.className = 'sample-item';
+
+            const canvas = document.createElement('canvas');
+            canvas.className = 'sample-canvas';
+            canvas.width = 60;
+            canvas.height = 60;
+
+            // 如果有imageData，绘制缩略图
+            if (sample.imageData) {
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(
+                    (() => {
+                        const tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = sample.imageData.width;
+                        tempCanvas.height = sample.imageData.height;
+                        const tempCtx = tempCanvas.getContext('2d');
+                        tempCtx.putImageData(sample.imageData, 0, 0);
+                        return tempCanvas;
+                    })(),
+                    0, 0, 60, 60
+                );
+            } else {
+                // 如果没有imageData（从localStorage加载的），显示占位符
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#f0f0f0';
+                ctx.fillRect(0, 0, 60, 60);
+                ctx.fillStyle = '#999';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('训练', 30, 35);
+            }
+
+            const label = document.createElement('div');
+            label.className = 'sample-label';
+            label.textContent = sample.label === 'smile' ? '😊' : '😢';
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'sample-delete';
+            deleteBtn.textContent = '×';
+            deleteBtn.onclick = () => {
+                processor.removeTrainingSample(index);
+                updateTrainingSamplesDisplay();
+                updateStats();
+            };
+
+            sampleDiv.appendChild(canvas);
+            sampleDiv.appendChild(label);
+            sampleDiv.appendChild(deleteBtn);
+            samplesGrid.appendChild(sampleDiv);
+        });
+
+        // 显示或隐藏训练样本区域
+        const trainingSamplesDiv = document.getElementById('trainingSamples');
+        trainingSamplesDiv.style.display = samples.length > 0 ? 'block' : 'none';
+    }
+
+    // 更新统计信息
+    function updateStats() {
+        const stats = processor.getTrainingStats();
+        document.getElementById('trainingCount').textContent = stats.total;
+        document.getElementById('smileCount').textContent = stats.smileCount;
+        document.getElementById('sadCount').textContent = stats.sadCount;
+    }
+
+    // 模式切换
+    document.getElementById('recognitionMode').addEventListener('click', () => {
+        currentMode = 'recognition';
+        document.getElementById('recognitionMode').classList.add('active');
+        document.getElementById('trainingMode').classList.remove('active');
+        document.getElementById('trainingControls').style.display = 'none';
+        document.getElementById('trainingTip').style.display = 'none';
+        document.getElementById('drawingSectionTitle').textContent = '1️⃣ 画一个表情';
+        document.getElementById('modeInfo').textContent = '💡 提示：可以用鼠标画，或者点击按钮生成表情';
+    });
+
+    document.getElementById('trainingMode').addEventListener('click', () => {
+        currentMode = 'training';
+        document.getElementById('trainingMode').classList.add('active');
+        document.getElementById('recognitionMode').classList.remove('active');
+        document.getElementById('trainingControls').style.display = 'block';
+        document.getElementById('trainingTip').style.display = 'block';
+        document.getElementById('drawingSectionTitle').textContent = '1️⃣ 画一个表情并标注';
+        document.getElementById('modeInfo').textContent = '🎓 提示：画好后，点击下方按钮告诉计算机这是什么表情';
+        updateStats();
+        updateTrainingSamplesDisplay();
+    });
+
+    // 训练模式：标注为笑脸
+    document.getElementById('labelSmile').addEventListener('click', async () => {
+        const stats = await processor.addTrainingSample('smile');
+        updateStats();
+        updateTrainingSamplesDisplay();
+        drawingBoard.clear();
+
+        // 显示反馈
+        alert(`✅ 笑脸样本已添加！\n总样本数：${stats.total}\n笑脸：${stats.smileCount} | 哭脸：${stats.sadCount}`);
+    });
+
+    // 训练模式：标注为哭脸
+    document.getElementById('labelSad').addEventListener('click', async () => {
+        const stats = await processor.addTrainingSample('sad');
+        updateStats();
+        updateTrainingSamplesDisplay();
+        drawingBoard.clear();
+
+        // 显示反馈
+        alert(`✅ 哭脸样本已添加！\n总样本数：${stats.total}\n笑脸：${stats.smileCount} | 哭脸：${stats.sadCount}`);
+    });
+
+    // 清空训练数据
+    document.getElementById('clearTrainingData').addEventListener('click', () => {
+        if (confirm('确定要清空所有训练数据吗？')) {
+            processor.clearTrainingData();
+            updateStats();
+            updateTrainingSamplesDisplay();
+        }
+    });
 
     // 生成笑脸
     document.getElementById('generateSmile').addEventListener('click', () => {
@@ -986,6 +1536,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // 生成哭脸
     document.getElementById('generateSad').addEventListener('click', () => {
         drawingBoard.generateSad();
+    });
+
+    // 生成简化笑脸
+    document.getElementById('generateSimpleSmile').addEventListener('click', () => {
+        drawingBoard.generateSimpleSmile();
+    });
+
+    // 生成简化哭脸
+    document.getElementById('generateSimpleSad').addEventListener('click', () => {
+        drawingBoard.generateSimpleSad();
     });
 
     // 清空画板
@@ -1008,6 +1568,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('finalResult').style.display = 'none';
     });
 
-    // 默认生成一个笑脸
+    // 初始化
     drawingBoard.generateSmile();
+    updateStats();
+    updateTrainingSamplesDisplay();
 });
