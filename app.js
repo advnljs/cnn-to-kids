@@ -1321,14 +1321,166 @@ class CNNProcessor {
         // 排序找出最相似的
         distances.sort((a, b) => a.distance - b.distance);
         const topMatch = distances[0];
+        const topSample = samples[topMatch.index];
 
         status.innerHTML = `✅ 对比完成！找到最相似样本（相似度: <strong style="color: #28a745;">${topMatch.similarity}%</strong>）`;
+
+        // 重新绘制最相似的样本（修复bug：之前显示的是最后一个样本）
+        comparingCtx.fillStyle = 'white';
+        comparingCtx.fillRect(0, 0, 80, 80);
+
+        if (topSample.imageData) {
+            comparingCtx.drawImage(
+                (() => {
+                    const temp = document.createElement('canvas');
+                    temp.width = topSample.imageData.width;
+                    temp.height = topSample.imageData.height;
+                    const tempCtx = temp.getContext('2d');
+                    tempCtx.putImageData(topSample.imageData, 0, 0);
+                    return temp;
+                })(),
+                0, 0, 80, 80
+            );
+        }
+
+        comparingLabel.textContent = `${topSample.label === 'smile' ? '😊' : '😢'} 最相似样本`;
+        distanceValue.innerHTML = `距离: <strong style="color: #28a745;">${topMatch.distance.toFixed(2)}</strong><br>相似度: <strong style="color: #28a745;">${topMatch.similarity}%</strong>`;
 
         // 高亮最相似的样本
         comparingCanvas.style.border = '3px solid #28a745';
         comparingCanvas.style.boxShadow = '0 0 20px rgba(40, 167, 69, 0.6)';
 
-        await this.delay(800);
+        await this.delay(1000);
+
+        // 显示特征细节对比
+        await this.showFeatureComparison(poolResults, topSample, topMatch, container);
+    }
+
+    // 显示特征细节对比
+    async showFeatureComparison(currentPoolResults, topSample, topMatch, container) {
+        const detailDiv = document.createElement('div');
+        detailDiv.style.marginTop = '20px';
+        detailDiv.style.padding = '20px';
+        detailDiv.style.background = 'rgba(40, 167, 69, 0.1)';
+        detailDiv.style.borderRadius = '10px';
+        detailDiv.style.border = '2px solid rgba(40, 167, 69, 0.3)';
+        detailDiv.innerHTML = `
+            <h4 style="margin: 0 0 15px 0; text-align: center; color: rgba(255,255,255,0.95);">
+                🔬 特征详细对比 - 为什么相似度是 ${topMatch.similarity}%？
+            </h4>
+            <div style="font-size: 0.9em; text-align: center; margin-bottom: 15px; color: rgba(255,255,255,0.85);">
+                对比池化后的3个特征图（横线、竖线、边缘探测器的结果）
+            </div>
+            <div id="featureComparisonGrid"></div>
+        `;
+
+        container.appendChild(detailDiv);
+
+        // 计算训练样本的池化结果（需要重新计算）
+        const imageData = topSample.imageData || this.drawingBoard.getImageData();
+        const grayMatrix = ImageProcessor.toGrayscaleMatrix(imageData, 28);
+
+        // 为训练样本计算特征
+        const sampleConvResults = {};
+        for (let [name, kernel] of Object.entries(this.kernels)) {
+            const convResult = ImageProcessor.convolve(grayMatrix, kernel);
+            sampleConvResults[name] = ImageProcessor.normalize(convResult);
+        }
+
+        const samplePoolResults = {};
+        for (let [name, matrix] of Object.entries(sampleConvResults)) {
+            samplePoolResults[name] = ImageProcessor.maxPool(matrix, 2);
+        }
+
+        // 创建对比网格
+        const grid = document.getElementById('featureComparisonGrid');
+        if (!grid) return;
+
+        const featureNames = [
+            { key: 'horizontal', label: '横线探测器', emoji: '━' },
+            { key: 'vertical', label: '竖线探测器', emoji: '┃' },
+            { key: 'edge', label: '边缘探测器', emoji: '◇' }
+        ];
+
+        let gridHTML = '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 10px;">';
+
+        for (let feature of featureNames) {
+            const currentMatrix = currentPoolResults[feature.key];
+            const sampleMatrix = samplePoolResults[feature.key];
+
+            // 计算这个特征的相似度（简单的矩阵差异）
+            let totalDiff = 0;
+            let count = 0;
+            for (let y = 0; y < currentMatrix.length; y++) {
+                for (let x = 0; x < currentMatrix[0].length; x++) {
+                    const diff = Math.abs(currentMatrix[y][x] - sampleMatrix[y][x]);
+                    totalDiff += diff;
+                    count++;
+                }
+            }
+            const avgDiff = totalDiff / count;
+            const featureSimilarity = Math.max(0, (1 - avgDiff) * 100).toFixed(1);
+
+            gridHTML += `
+                <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 8px;">
+                    <div style="text-align: center; font-weight: bold; margin-bottom: 8px; color: rgba(255,255,255,0.95);">
+                        ${feature.emoji} ${feature.label}
+                    </div>
+
+                    <!-- 当前图像特征 -->
+                    <div style="margin-bottom: 8px;">
+                        <div style="font-size: 0.8em; color: rgba(255,255,255,0.8); margin-bottom: 4px;">当前图像</div>
+                        <canvas id="currentFeature_${feature.key}" style="width: 100%; border-radius: 4px; image-rendering: pixelated;"></canvas>
+                    </div>
+
+                    <!-- 训练样本特征 -->
+                    <div style="margin-bottom: 8px;">
+                        <div style="font-size: 0.8em; color: rgba(255,255,255,0.8); margin-bottom: 4px;">训练样本</div>
+                        <canvas id="sampleFeature_${feature.key}" style="width: 100%; border-radius: 4px; image-rendering: pixelated;"></canvas>
+                    </div>
+
+                    <!-- 相似度条 -->
+                    <div style="margin-top: 10px;">
+                        <div style="font-size: 0.85em; text-align: center; margin-bottom: 4px; color: rgba(255,255,255,0.9);">
+                            匹配度: <strong>${featureSimilarity}%</strong>
+                        </div>
+                        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.2); border-radius: 4px; overflow: hidden;">
+                            <div style="width: ${featureSimilarity}%; height: 100%; background: linear-gradient(90deg, #28a745, #20c997); border-radius: 4px; transition: width 1s ease;"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        gridHTML += '</div>';
+
+        // 添加总结
+        gridHTML += `
+            <div style="margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.1); border-radius: 8px; text-align: center;">
+                <div style="font-size: 0.9em; color: rgba(255,255,255,0.9); line-height: 1.6;">
+                    💡 <strong>如何计算总相似度？</strong><br>
+                    将3个特征图展平成一个长向量（507维），然后计算两个向量之间的<strong>欧氏距离</strong>。<br>
+                    距离越小 → 特征越接近 → 相似度越高！
+                </div>
+            </div>
+        `;
+
+        grid.innerHTML = gridHTML;
+
+        // 绘制热力图
+        await this.delay(100); // 等待DOM渲染
+
+        for (let feature of featureNames) {
+            const currentCanvas = document.getElementById(`currentFeature_${feature.key}`);
+            const sampleCanvas = document.getElementById(`sampleFeature_${feature.key}`);
+
+            if (currentCanvas) {
+                Visualizer.drawHeatmap(currentCanvas, currentPoolResults[feature.key], 8);
+            }
+            if (sampleCanvas) {
+                Visualizer.drawHeatmap(sampleCanvas, samplePoolResults[feature.key], 8);
+            }
+        }
     }
 
     // 显示最相似的样本
