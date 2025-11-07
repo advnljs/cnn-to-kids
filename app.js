@@ -1159,34 +1159,34 @@ class CNNProcessor {
         if (!container) return;
 
         container.innerHTML = `
-            <div style="padding: 20px; background: rgba(255,255,255,0.1); border-radius: 10px; margin-top: 15px;">
-                <div style="font-size: 1.2em; margin-bottom: 15px; text-align: center;">
+            <div style="padding: 20px; background: rgba(248, 249, 250, 0.95); border-radius: 10px; margin-top: 15px; border: 2px solid rgba(102, 126, 234, 0.3); box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                <div style="font-size: 1.2em; margin-bottom: 15px; text-align: center; color: #333; font-weight: 600;">
                     🔍 正在与训练样本逐个比对特征...
                 </div>
 
                 <!-- 当前识别的图像 -->
                 <div style="text-align: center; margin-bottom: 20px;">
-                    <div style="font-size: 0.95em; color: rgba(255,255,255,0.9); margin-bottom: 8px;">
+                    <div style="font-size: 0.95em; color: #555; margin-bottom: 8px; background: rgba(255,255,255,0.9); padding: 4px 8px; border-radius: 4px; display: inline-block;">
                         📸 当前要识别的图像
                     </div>
-                    <canvas id="currentImagePreview" style="border: 3px solid #667eea; border-radius: 8px; background: white;"></canvas>
+                    <div><canvas id="currentImagePreview" style="border: 3px solid #667eea; border-radius: 8px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.15);"></canvas></div>
                 </div>
 
                 <!-- 匹配对比区域 -->
                 <div id="matchingComparisonArea" style="display: flex; align-items: center; justify-content: center; gap: 20px; margin: 20px 0; min-height: 120px;">
                     <div style="text-align: center;">
                         <canvas id="currentFeaturePreview" width="80" height="80" style="border: 2px solid #667eea; border-radius: 8px; background: white;"></canvas>
-                        <div style="font-size: 0.8em; margin-top: 5px; color: rgba(255,255,255,0.8);">当前图像</div>
+                        <div style="font-size: 0.8em; margin-top: 5px; color: #555; background: rgba(255,255,255,0.9); padding: 2px 6px; border-radius: 3px;">当前图像</div>
                     </div>
 
                     <div style="display: flex; flex-direction: column; align-items: center;">
                         <div id="matchingArrow" style="font-size: 2em; color: #ffc107; animation: arrowBounce 1s ease-in-out infinite;">⟷</div>
-                        <div id="distanceValue" style="font-size: 0.85em; color: rgba(255,255,255,0.9); margin-top: 5px;">计算中...</div>
+                        <div id="distanceValue" style="font-size: 0.85em; color: #333; margin-top: 5px; background: rgba(255,255,255,0.9); padding: 4px 8px; border-radius: 4px;">计算中...</div>
                     </div>
 
                     <div id="comparingSampleContainer" style="text-align: center;">
                         <canvas id="comparingSample" width="80" height="80" style="border: 2px solid #ffc107; border-radius: 8px; background: white;"></canvas>
-                        <div style="font-size: 0.8em; margin-top: 5px; color: rgba(255,255,255,0.8);" id="comparingLabel">训练样本</div>
+                        <div style="font-size: 0.8em; margin-top: 5px; color: #555; background: rgba(255,255,255,0.9); padding: 2px 6px; border-radius: 3px;" id="comparingLabel">训练样本</div>
                     </div>
                 </div>
 
@@ -1194,7 +1194,7 @@ class CNNProcessor {
                 <div class="matching-progress">
                     <div class="progress-bar" id="matchingProgressBar"></div>
                 </div>
-                <div id="matchingStatus" style="margin-top: 10px; font-size: 0.9em; color: rgba(255,255,255,0.8); text-align: center;">
+                <div id="matchingStatus" style="margin-top: 10px; font-size: 0.9em; color: #333; text-align: center; background: rgba(255,255,255,0.9); padding: 8px; border-radius: 6px;">
                     准备开始对比...
                 </div>
 
@@ -1287,7 +1287,7 @@ class CNNProcessor {
 
             comparingLabel.textContent = `${sample.label === 'smile' ? '😊' : '😢'} 样本 ${i + 1}`;
             distanceValue.innerHTML = `距离: <strong>${distance.toFixed(2)}</strong><br>相似度: <strong>${similarity}%</strong>`;
-            status.innerHTML = `🔍 对比样本 ${i + 1}/${samples.length} - 相似度: <strong style="color: #ffc107;">${similarity}%</strong>`;
+            status.innerHTML = `🔍 对比样本 ${i + 1}/${samples.length} - 相似度: <strong style="color: #667eea;">${similarity}%</strong>`;
 
             // 添加到已对比列表（小缩略图）
             const miniCanvas = document.createElement('canvas');
@@ -1324,6 +1324,9 @@ class CNNProcessor {
         const topSample = samples[topMatch.index];
 
         status.innerHTML = `✅ 对比完成！找到最相似样本（相似度: <strong style="color: #28a745;">${topMatch.similarity}%</strong>）`;
+        status.style.background = 'rgba(40, 167, 69, 0.15)';
+        status.style.border = '2px solid rgba(40, 167, 69, 0.5)';
+        status.style.fontWeight = '600';
 
         // 重新绘制最相似的样本（修复bug：之前显示的是最后一个样本）
         comparingCtx.fillStyle = 'white';
@@ -1361,14 +1364,15 @@ class CNNProcessor {
         const detailDiv = document.createElement('div');
         detailDiv.style.marginTop = '20px';
         detailDiv.style.padding = '20px';
-        detailDiv.style.background = 'rgba(40, 167, 69, 0.1)';
+        detailDiv.style.background = 'rgba(255, 255, 255, 0.95)';
         detailDiv.style.borderRadius = '10px';
-        detailDiv.style.border = '2px solid rgba(40, 167, 69, 0.3)';
+        detailDiv.style.border = '2px solid rgba(40, 167, 69, 0.5)';
+        detailDiv.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
         detailDiv.innerHTML = `
-            <h4 style="margin: 0 0 15px 0; text-align: center; color: rgba(255,255,255,0.95);">
-                🔬 特征详细对比 - 为什么相似度是 ${topMatch.similarity}%？
+            <h4 style="margin: 0 0 15px 0; text-align: center; color: #333; text-shadow: none;">
+                🔬 特征详细对比 - 为什么相似度是 <span style="color: #28a745;">${topMatch.similarity}%</span>？
             </h4>
-            <div style="font-size: 0.9em; text-align: center; margin-bottom: 15px; color: rgba(255,255,255,0.85);">
+            <div style="font-size: 0.9em; text-align: center; margin-bottom: 15px; color: #555;">
                 对比池化后的3个特征图（横线、竖线、边缘探测器的结果）
             </div>
             <div id="featureComparisonGrid"></div>
@@ -1422,29 +1426,42 @@ class CNNProcessor {
             const featureSimilarity = Math.max(0, (1 - avgDiff) * 100).toFixed(1);
 
             gridHTML += `
-                <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 8px;">
-                    <div style="text-align: center; font-weight: bold; margin-bottom: 8px; color: rgba(255,255,255,0.95);">
+                <div style="background: rgba(248, 249, 250, 0.95); padding: 12px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); box-shadow: 0 2px 6px rgba(0,0,0,0.08);">
+                    <div style="text-align: center; font-weight: bold; margin-bottom: 8px; color: #333; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 6px; border-radius: 6px; color: white;">
                         ${feature.emoji} ${feature.label}
                     </div>
 
                     <!-- 当前图像特征 -->
-                    <div style="margin-bottom: 8px;">
-                        <div style="font-size: 0.8em; color: rgba(255,255,255,0.8); margin-bottom: 4px;">当前图像</div>
-                        <canvas id="currentFeature_${feature.key}" style="width: 100%; border-radius: 4px; image-rendering: pixelated;"></canvas>
+                    <div style="margin-bottom: 6px;">
+                        <div style="font-size: 0.75em; color: #333; background: rgba(255,255,255,0.9); padding: 2px 6px; border-radius: 3px; margin-bottom: 4px; display: inline-block;">当前图像</div>
+                        <canvas id="currentFeature_${feature.key}" style="width: 100%; border: 2px solid rgba(102, 126, 234, 0.5); border-radius: 4px; image-rendering: pixelated; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></canvas>
                     </div>
 
                     <!-- 训练样本特征 -->
-                    <div style="margin-bottom: 8px;">
-                        <div style="font-size: 0.8em; color: rgba(255,255,255,0.8); margin-bottom: 4px;">训练样本</div>
-                        <canvas id="sampleFeature_${feature.key}" style="width: 100%; border-radius: 4px; image-rendering: pixelated;"></canvas>
+                    <div style="margin-bottom: 6px;">
+                        <div style="font-size: 0.75em; color: #333; background: rgba(255,255,255,0.9); padding: 2px 6px; border-radius: 3px; margin-bottom: 4px; display: inline-block;">训练样本</div>
+                        <canvas id="sampleFeature_${feature.key}" style="width: 100%; border: 2px solid rgba(40, 167, 69, 0.5); border-radius: 4px; image-rendering: pixelated; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></canvas>
+                    </div>
+
+                    <!-- 像素差异对比 -->
+                    <div style="margin-bottom: 6px;">
+                        <div style="font-size: 0.75em; color: #333; background: rgba(255,255,255,0.9); padding: 2px 6px; border-radius: 3px; margin-bottom: 4px; display: inline-block;">
+                            📊 像素差异
+                        </div>
+                        <canvas id="diffFeature_${feature.key}" style="width: 100%; border: 2px solid rgba(255, 193, 7, 0.5); border-radius: 4px; image-rendering: pixelated; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></canvas>
+                        <div style="font-size: 0.7em; color: #333; background: rgba(255,255,255,0.9); padding: 4px; border-radius: 3px; margin-top: 4px; text-align: center;">
+                            <span style="color: #28a745;">🟢</span> 相似
+                            <span style="color: #ffc107; margin-left: 8px;">🟡</span> 中等
+                            <span style="color: #dc3545; margin-left: 8px;">🔴</span> 不同
+                        </div>
                     </div>
 
                     <!-- 相似度条 -->
                     <div style="margin-top: 10px;">
-                        <div style="font-size: 0.85em; text-align: center; margin-bottom: 4px; color: rgba(255,255,255,0.9);">
-                            匹配度: <strong>${featureSimilarity}%</strong>
+                        <div style="font-size: 0.85em; text-align: center; margin-bottom: 4px; color: #333; background: rgba(255,255,255,0.9); padding: 4px; border-radius: 4px;">
+                            匹配度: <strong style="color: #28a745;">${featureSimilarity}%</strong>
                         </div>
-                        <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.2); border-radius: 4px; overflow: hidden;">
+                        <div style="width: 100%; height: 8px; background: rgba(0,0,0,0.2); border-radius: 4px; overflow: hidden;">
                             <div style="width: ${featureSimilarity}%; height: 100%; background: linear-gradient(90deg, #28a745, #20c997); border-radius: 4px; transition: width 1s ease;"></div>
                         </div>
                     </div>
@@ -1456,30 +1473,117 @@ class CNNProcessor {
 
         // 添加总结
         gridHTML += `
-            <div style="margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.1); border-radius: 8px; text-align: center;">
-                <div style="font-size: 0.9em; color: rgba(255,255,255,0.9); line-height: 1.6;">
-                    💡 <strong>如何计算总相似度？</strong><br>
-                    将3个特征图展平成一个长向量（507维），然后计算两个向量之间的<strong>欧氏距离</strong>。<br>
-                    距离越小 → 特征越接近 → 相似度越高！
+            <div style="margin-top: 15px; padding: 12px; background: rgba(255,255,255,0.95); border-radius: 8px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <div style="font-size: 0.9em; color: #333; line-height: 1.6;">
+                    💡 <strong style="color: #667eea;">如何计算总相似度？</strong><br>
+                    将3个特征图展平成一个长向量（<strong>507维</strong>），然后计算两个向量之间的<strong>欧氏距离</strong>。<br>
+                    <span style="color: #28a745;">距离越小 → 特征越接近 → 相似度越高！</span>
                 </div>
             </div>
         `;
 
         grid.innerHTML = gridHTML;
 
-        // 绘制热力图
+        // 绘制热力图和差异图
         await this.delay(100); // 等待DOM渲染
 
         for (let feature of featureNames) {
             const currentCanvas = document.getElementById(`currentFeature_${feature.key}`);
             const sampleCanvas = document.getElementById(`sampleFeature_${feature.key}`);
+            const diffCanvas = document.getElementById(`diffFeature_${feature.key}`);
+
+            const currentMatrix = currentPoolResults[feature.key];
+            const sampleMatrix = samplePoolResults[feature.key];
 
             if (currentCanvas) {
-                Visualizer.drawHeatmap(currentCanvas, currentPoolResults[feature.key], 8);
+                Visualizer.drawHeatmap(currentCanvas, currentMatrix, 8);
             }
             if (sampleCanvas) {
-                Visualizer.drawHeatmap(sampleCanvas, samplePoolResults[feature.key], 8);
+                Visualizer.drawHeatmap(sampleCanvas, sampleMatrix, 8);
             }
+            if (diffCanvas) {
+                // 绘制差异图
+                this.drawDifferenceMap(diffCanvas, currentMatrix, sampleMatrix, 8);
+            }
+        }
+    }
+
+    // 绘制差异图（显示两个矩阵的像素差异）
+    drawDifferenceMap(canvas, matrix1, matrix2, cellSize = 8) {
+        const ctx = canvas.getContext('2d');
+        const height = matrix1.length;
+        const width = matrix1[0].length;
+
+        canvas.width = width * cellSize;
+        canvas.height = height * cellSize;
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const val1 = matrix1[y][x];
+                const val2 = matrix2[y][x];
+                const diff = Math.abs(val1 - val2);
+
+                // 根据差异大小选择颜色
+                let color;
+                if (diff < 0.1) {
+                    // 非常相似 - 绿色
+                    const intensity = 1 - (diff * 10);
+                    color = `rgb(${Math.floor(40 + (255-40) * (1-intensity))}, ${Math.floor(167 + (255-167) * (1-intensity))}, ${Math.floor(69 + (255-69) * (1-intensity))})`;
+                } else if (diff < 0.3) {
+                    // 中等差异 - 黄色
+                    const t = (diff - 0.1) / 0.2;
+                    const r = Math.floor(40 + (255 - 40) * t);
+                    const g = Math.floor(167 + (193 - 167) * t);
+                    const b = Math.floor(69 + (7 - 69) * t);
+                    color = `rgb(${r}, ${g}, ${b})`;
+                } else {
+                    // 差异大 - 红色
+                    const t = Math.min(1, (diff - 0.3) / 0.4);
+                    const r = 255;
+                    const g = Math.floor(193 - 193 * t);
+                    const b = Math.floor(7 - 7 * t);
+                    color = `rgb(${r}, ${g}, ${b})`;
+                }
+
+                ctx.fillStyle = color;
+                ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+            }
+        }
+
+        // 绘制网格线
+        ctx.strokeStyle = 'rgba(100, 100, 100, 0.3)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x <= width; x++) {
+            ctx.beginPath();
+            ctx.moveTo(x * cellSize, 0);
+            ctx.lineTo(x * cellSize, height * cellSize);
+            ctx.stroke();
+        }
+        for (let y = 0; y <= height; y++) {
+            ctx.beginPath();
+            ctx.moveTo(0, y * cellSize);
+            ctx.lineTo(width * cellSize, y * cellSize);
+            ctx.stroke();
+        }
+
+        // 添加边框高亮最大差异区域
+        let maxDiff = 0;
+        let maxPos = { x: 0, y: 0 };
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const diff = Math.abs(matrix1[y][x] - matrix2[y][x]);
+                if (diff > maxDiff) {
+                    maxDiff = diff;
+                    maxPos = { x, y };
+                }
+            }
+        }
+
+        // 高亮最大差异位置
+        if (maxDiff > 0.2) {
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(maxPos.x * cellSize, maxPos.y * cellSize, cellSize, cellSize);
         }
     }
 
@@ -1488,8 +1592,8 @@ class CNNProcessor {
         const samples = this.trainingManager.getSamples();
 
         let html = `
-            <div style="margin-top: 25px; padding: 20px; background: rgba(0,0,0,0.1); border-radius: 10px;">
-                <h4 style="margin: 0 0 15px 0; font-size: 1.2em;">🎯 最相似的训练样本（K=${neighbors.length}）</h4>
+            <div style="margin-top: 25px; padding: 20px; background: rgba(248, 249, 250, 0.95); border-radius: 10px; border: 2px solid rgba(102, 126, 234, 0.3); box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                <h4 style="margin: 0 0 15px 0; font-size: 1.2em; color: #333; text-align: center;">🎯 最相似的训练样本（K=${neighbors.length}）</h4>
                 <div class="similar-samples-grid" id="similarSamplesContainer">
         `;
 
@@ -1521,11 +1625,11 @@ class CNNProcessor {
 
         html += `
                 </div>
-                <div style="margin-top: 15px; font-size: 0.9em; color: rgba(255,255,255,0.9); line-height: 1.6;">
-                    💡 <strong>工作原理：</strong><br>
+                <div style="margin-top: 15px; font-size: 0.9em; color: #333; line-height: 1.6; background: rgba(255,255,255,0.9); padding: 12px; border-radius: 8px; border: 1px solid rgba(102, 126, 234, 0.2);">
+                    💡 <strong style="color: #667eea;">工作原理：</strong><br>
                     • 计算当前图像与每个训练样本的<strong>特征距离</strong>（${neighbors.length}个最近邻）<br>
                     • 距离越小 = 特征越相似 = 相似度越高<br>
-                    • ${neighbors.filter(n => samples[n.index].label === predictedLabel).length} 个样本投票 "${predictedLabel === 'smile' ? '笑脸' : '哭脸'}"，所以最终结果是<strong>${predictedLabel === 'smile' ? '笑脸' : '哭脸'}</strong>！
+                    • <strong style="color: #28a745;">${neighbors.filter(n => samples[n.index].label === predictedLabel).length} 个样本</strong>投票 "${predictedLabel === 'smile' ? '笑脸' : '哭脸'}"，所以最终结果是<strong style="color: #667eea;">${predictedLabel === 'smile' ? '笑脸' : '哭脸'}</strong>！
                 </div>
             </div>
         `;
