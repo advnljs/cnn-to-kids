@@ -1164,14 +1164,6 @@ class CNNProcessor {
                     🔍 正在与训练样本逐个比对特征...
                 </div>
 
-                <!-- 当前识别的图像 -->
-                <div style="text-align: center; margin-bottom: 20px;">
-                    <div style="font-size: 0.95em; color: #555; margin-bottom: 8px; background: rgba(255,255,255,0.9); padding: 4px 8px; border-radius: 4px; display: inline-block;">
-                        📸 当前要识别的图像
-                    </div>
-                    <div><canvas id="currentImagePreview" style="border: 3px solid #667eea; border-radius: 8px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.15);"></canvas></div>
-                </div>
-
                 <!-- 匹配对比区域 -->
                 <div id="matchingComparisonArea" style="display: flex; align-items: center; justify-content: center; gap: 20px; margin: 20px 0; min-height: 120px;">
                     <div style="text-align: center;">
@@ -1204,25 +1196,8 @@ class CNNProcessor {
             </div>
         `;
 
-        // 绘制当前图像预览
-        const currentCanvas = document.getElementById('currentImagePreview');
-        const currentCtx = currentCanvas.getContext('2d');
-        currentCanvas.width = 100;
-        currentCanvas.height = 100;
+        // 绘制当前特征预览
         const currentImageData = this.drawingBoard.getImageData();
-        currentCtx.drawImage(
-            (() => {
-                const temp = document.createElement('canvas');
-                temp.width = currentImageData.width;
-                temp.height = currentImageData.height;
-                const tempCtx = temp.getContext('2d');
-                tempCtx.putImageData(currentImageData, 0, 0);
-                return temp;
-            })(),
-            0, 0, 100, 100
-        );
-
-        // 绘制当前特征预览（小尺寸）
         const currentFeatureCanvas = document.getElementById('currentFeaturePreview');
         const currentFeatureCtx = currentFeatureCanvas.getContext('2d');
         currentFeatureCtx.drawImage(
@@ -1290,14 +1265,18 @@ class CNNProcessor {
             status.innerHTML = `🔍 对比样本 ${i + 1}/${samples.length} - 相似度: <strong style="color: #667eea;">${similarity}%</strong>`;
 
             // 添加到已对比列表（小缩略图）
+            const miniContainer = document.createElement('div');
+            miniContainer.style.display = 'flex';
+            miniContainer.style.flexDirection = 'column';
+            miniContainer.style.alignItems = 'center';
+            miniContainer.style.opacity = '0';
+            miniContainer.style.animation = 'fadeIn 0.3s ease forwards';
+
             const miniCanvas = document.createElement('canvas');
             miniCanvas.width = 40;
             miniCanvas.height = 40;
             miniCanvas.style.border = `2px solid ${similarity > 80 ? '#28a745' : similarity > 60 ? '#ffc107' : '#6c757d'}`;
             miniCanvas.style.borderRadius = '6px';
-            miniCanvas.style.opacity = '0';
-            miniCanvas.style.animation = 'fadeIn 0.3s ease forwards';
-            miniCanvas.title = `样本${i+1}: ${similarity}%相似`;
 
             const miniCtx = miniCanvas.getContext('2d');
             if (sample.imageData) {
@@ -1313,7 +1292,17 @@ class CNNProcessor {
                     0, 0, 40, 40
                 );
             }
-            comparedPreview.appendChild(miniCanvas);
+
+            const miniLabel = document.createElement('div');
+            miniLabel.style.fontSize = '10px';
+            miniLabel.style.marginTop = '2px';
+            miniLabel.style.color = similarity > 80 ? '#28a745' : similarity > 60 ? '#ffc107' : '#6c757d';
+            miniLabel.style.fontWeight = '600';
+            miniLabel.textContent = `${similarity}%`;
+
+            miniContainer.appendChild(miniCanvas);
+            miniContainer.appendChild(miniLabel);
+            comparedPreview.appendChild(miniContainer);
 
             await this.delay(200);
         }
@@ -1614,14 +1603,10 @@ class CNNProcessor {
                         <canvas id="similarSampleCanvas${i}" width="100" height="100" style="border-radius: 8px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.2);"></canvas>
                     </div>
                     <div class="sample-emoji">${sample.label === 'smile' ? '😊' : '😢'}</div>
-                    <div class="sample-similarity">
-                        <div class="similarity-bar-container">
-                            <div class="similarity-bar" style="width: ${similarity}%;"></div>
-                        </div>
-                        <div class="similarity-text">${similarity}% 相似</div>
-                    </div>
-                    <div class="sample-distance">距离: ${neighbor.distance.toFixed(2)}</div>
                     ${isMatch ? '<div class="match-badge">✓ 匹配</div>' : ''}
+                    <div class="sample-similarity">
+                        <div class="similarity-text" style="font-size: 1.1em; font-weight: 600; color: #667eea; margin-top: 8px;">${similarity}% 相似</div>
+                    </div>
                 </div>
             `;
         }
