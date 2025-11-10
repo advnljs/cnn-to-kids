@@ -8,6 +8,87 @@ if (DEBUG_MODE) {
     console.log('🐛 Debug模式已启用 - 将跳过动画直接显示结果');
 }
 
+// Debug模式下的轻量级Loading指示器（防“假死”感）
+const DebugLoading = (() => {
+    let ensured = false;
+    let overlayEl = null;
+
+    function ensureUI() {
+        if (ensured || !DEBUG_MODE) return;
+        ensured = true;
+
+        // 注入样式（仅Debug模式）
+        const styleId = 'debugLoadingStyles';
+        if (!document.getElementById(styleId)) {
+            const style = document.createElement('style');
+            style.id = styleId;
+            style.textContent = `
+            @keyframes debug-spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            .debug-loading-card {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                background: rgba(102, 126, 234, 0.95);
+                color: #fff;
+                padding: 8px 14px;
+                border-radius: 20px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                font-size: 13px;
+                font-weight: 600;
+            }
+            .debug-spinner {
+                width: 16px;
+                height: 16px;
+                border: 2px solid rgba(255,255,255,0.6);
+                border-top-color: #fff;
+                border-radius: 50%;
+                animation: debug-spin 0.8s linear infinite;
+            }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // 创建悬浮指示器
+        overlayEl = document.createElement('div');
+        overlayEl.id = 'debugLoadingOverlay';
+        overlayEl.style.position = 'fixed';
+        overlayEl.style.top = '50px'; // 避开右上角“Debug模式”徽标
+        overlayEl.style.right = '10px';
+        overlayEl.style.zIndex = '99999';
+        overlayEl.style.display = 'none';
+        overlayEl.style.pointerEvents = 'none'; // 不阻断交互
+
+        overlayEl.innerHTML = `
+            <div class="debug-loading-card">
+                <div class="debug-spinner"></div>
+                <div class="debug-text">快速计算中...</div>
+            </div>
+        `;
+
+        document.body.appendChild(overlayEl);
+    }
+
+    function show(message) {
+        if (!DEBUG_MODE) return;
+        if (!ensured) ensureUI();
+        const textEl = overlayEl?.querySelector('.debug-text');
+        if (textEl && typeof message === 'string' && message.length > 0) {
+            textEl.textContent = message;
+        }
+        if (overlayEl) overlayEl.style.display = 'block';
+    }
+
+    function hide() {
+        if (!DEBUG_MODE) return;
+        if (overlayEl) overlayEl.style.display = 'none';
+    }
+
+    return { ensureUI, show, hide };
+})();
+
 // 训练数据管理类
 class TrainingDataManager {
     constructor() {
@@ -1014,6 +1095,16 @@ class Visualizer {
 
     // 动画展示卷积过程
     static async animateConvolution(inputCanvas, outputCanvas, matrix, kernel, cellSize = 8, speed = 50) {
+        // Debug模式：跳过逐格动画，直接计算并绘制最终结果（防止主线程长时间占用）
+        if (DEBUG_MODE) {
+            const conv = ImageProcessor.convolve(matrix, kernel);
+            const outputMatrix = ImageProcessor.normalize(conv);
+            // 绘制输入与最终输出
+            Visualizer.drawMatrix(inputCanvas, matrix, cellSize);
+            Visualizer.drawMatrix(outputCanvas, outputMatrix, cellSize);
+            return outputMatrix;
+        }
+
         const inputSize = matrix.length;
         const kernelSize = kernel.length;
         const outputSize = inputSize - kernelSize + 1;
@@ -1115,6 +1206,15 @@ class Visualizer {
 
     // 动画展示卷积过程（热力图版本）
     static async animateConvolutionHeatmap(inputCanvas, outputCanvas, matrix, kernel, cellSize = 12, speed = 50) {
+        // Debug模式：直接计算并一次性绘制热力图
+        if (DEBUG_MODE) {
+            const conv = ImageProcessor.convolve(matrix, kernel);
+            const outputMatrix = ImageProcessor.normalize(conv);
+            Visualizer.drawHeatmap(inputCanvas, matrix, cellSize);
+            Visualizer.drawHeatmap(outputCanvas, outputMatrix, cellSize);
+            return outputMatrix;
+        }
+
         const inputSize = matrix.length;
         const kernelSize = kernel.length;
         const outputSize = inputSize - kernelSize + 1;
@@ -1161,6 +1261,19 @@ class Visualizer {
 
     // 动画展示池化过程
     static async animatePooling(inputCanvas, outputCanvas, matrix, poolSize, inputCellSize = 8, outputCellSize = 8, speed = 100, useHeatmap = false) {
+        // Debug模式：直接池化并绘制最终结果
+        if (DEBUG_MODE) {
+            const outputMatrix = ImageProcessor.maxPool(matrix, poolSize);
+            if (useHeatmap) {
+                Visualizer.drawHeatmap(inputCanvas, matrix, inputCellSize);
+                Visualizer.drawHeatmap(outputCanvas, outputMatrix, outputCellSize);
+            } else {
+                Visualizer.drawMatrix(inputCanvas, matrix, inputCellSize);
+                Visualizer.drawMatrix(outputCanvas, outputMatrix, outputCellSize);
+            }
+            return outputMatrix;
+        }
+
         const inputSize = matrix.length;
         const outputSize = Math.floor(inputSize / poolSize);
         const outputMatrix = Array(outputSize).fill(0).map(() => Array(outputSize).fill(0));
@@ -1246,30 +1359,43 @@ class CNNProcessor {
     }
 
     async process() {
+        // Debug模式下显示轻量级Loading，避免长计算期间无反馈
+        if (DEBUG_MODE) {
+            DebugLoading.show('快速计算中...');
+            // 让浏览器先渲染Loading
+            await new Promise(resolve => requestAnimationFrame(resolve));
+        }
+
         // 清空之前的结果
         this.stepsContainer.innerHTML = '';
         this.finalResult.style.display = 'none';
 
-        // 获取图像数据并预处理（居中+尺度归一化）
-        const rawImageData = this.drawingBoard.getImageData();
-        const preprocessedImageData = ImageProcessor.preprocessImage(rawImageData, 280);
-        const grayMatrix = ImageProcessor.toGrayscaleMatrix(preprocessedImageData, 28);
+        try {
+            // 获取图像数据并预处理（居中+尺度归一化）
+            const rawImageData = this.drawingBoard.getImageData();
+            const preprocessedImageData = ImageProcessor.preprocessImage(rawImageData, 280);
+            const grayMatrix = ImageProcessor.toGrayscaleMatrix(preprocessedImageData, 28);
 
-        // 步骤1：显示原始图像
-        await this.showStep1(grayMatrix);
-        await this.delay(1000);
+            // 步骤1：显示原始图像
+            await this.showStep1(grayMatrix);
+            await this.delay(1000);
 
-        // 步骤2：卷积 - 特征探测
-        const convResults = await this.showStep2(grayMatrix);
-        await this.delay(1500);
+            // 步骤2：卷积 - 特征探测
+            const convResults = await this.showStep2(grayMatrix);
+            await this.delay(1500);
 
-        // 步骤3：池化 - 信息压缩（用热力图显示）
-        const poolResults = await this.showStep3(convResults);
-        this.lastPoolResults = poolResults;  // 保存用于训练
-        await this.delay(1500);
+            // 步骤3：池化 - 信息压缩（用热力图显示）
+            const poolResults = await this.showStep3(convResults);
+            this.lastPoolResults = poolResults;  // 保存用于训练
+            await this.delay(1500);
 
-        // 步骤4：分类判断
-        await this.showStep4(grayMatrix, poolResults);
+            // 步骤4：分类判断
+            await this.showStep4(grayMatrix, poolResults);
+        } finally {
+            if (DEBUG_MODE) {
+                DebugLoading.hide();
+            }
+        }
     }
 
     async showStep1(matrix) {
@@ -2203,6 +2329,11 @@ class CNNProcessor {
 
     // 添加训练样本（在训练模式下使用）
     async addTrainingSample(label) {
+        if (DEBUG_MODE) {
+            DebugLoading.show('提取特征并保存训练样本...');
+            await new Promise(resolve => requestAnimationFrame(resolve));
+        }
+        try {
         if (!this.lastPoolResults) {
             // 如果还没有处理过图像，先处理一次
             const rawImageData = this.drawingBoard.getImageData();
@@ -2237,7 +2368,12 @@ class CNNProcessor {
         // 清空lastPoolResults，准备下一次
         this.lastPoolResults = null;
 
-        return this.trainingManager.getStats();
+            return this.trainingManager.getStats();
+        } finally {
+            if (DEBUG_MODE) {
+                DebugLoading.hide();
+            }
+        }
     }
 
     // 获取训练统计
