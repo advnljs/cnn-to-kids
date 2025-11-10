@@ -93,20 +93,30 @@ class TrainingDataManager {
                 this.samples = loaded.map(s => {
                     let imageData = null;
 
-                    // 从base64还原imageData
+                    // 从base64还原imageData（同步方式 - 使用临时canvas）
                     if (s.imageDataURL) {
                         try {
+                            // 创建临时image和canvas来解码base64
                             const img = new Image();
-                            img.src = s.imageDataURL;
-
                             const canvas = document.createElement('canvas');
-                            canvas.width = 280;  // 原始大小
+                            canvas.width = 280;
                             canvas.height = 280;
                             const ctx = canvas.getContext('2d');
 
-                            // 同步绘制（因为是本地data URL）
-                            ctx.drawImage(img, 0, 0, 280, 280);
-                            imageData = ctx.getImageData(0, 0, 280, 280);
+                            // Data URL是同步的，可以立即使用
+                            // 但需要先加载完成
+                            img.onload = () => {
+                                ctx.drawImage(img, 0, 0, 280, 280);
+                            };
+                            img.src = s.imageDataURL;
+
+                            // 对于data URL，浏览器会同步解码
+                            // 但我们需要确保onload执行完成
+                            // 使用另一种方法：直接从base64解码
+
+                            // 更好的方法：存储为ImageData的原始数据
+                            // 暂时保存URL，稍后异步加载
+                            imageData = s.imageDataURL;  // 临时存储URL
                         } catch (err) {
                             console.warn('还原imageData失败:', err);
                         }
@@ -115,14 +125,52 @@ class TrainingDataManager {
                     return {
                         features: s.features,
                         label: s.label,
-                        imageData: imageData,
+                        imageData: imageData,  // 现在是URL字符串，稍后转换
+                        imageDataURL: s.imageDataURL,  // 保留原始URL
                         timestamp: Date.now()
                     };
                 });
+
+                // 异步加载所有图像
+                this.loadImagesAsync();
             }
         } catch (e) {
             console.warn('无法从localStorage加载训练数据:', e);
         }
+    }
+
+    // 异步加载所有图像
+    async loadImagesAsync() {
+        const promises = this.samples.map((sample, index) => {
+            return new Promise((resolve) => {
+                if (sample.imageDataURL && typeof sample.imageData === 'string') {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = 280;
+                        canvas.height = 280;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, 280, 280);
+                        this.samples[index].imageData = ctx.getImageData(0, 0, 280, 280);
+                        resolve();
+                    };
+                    img.onerror = () => {
+                        console.warn(`图像加载失败: 样本 ${index}`);
+                        this.samples[index].imageData = null;
+                        resolve();
+                    };
+                    img.src = sample.imageDataURL;
+                } else {
+                    resolve();
+                }
+            });
+        });
+
+        await Promise.all(promises);
+
+        // 触发UI更新事件
+        const event = new CustomEvent('trainingDataLoaded');
+        window.dispatchEvent(event);
     }
 }
 
@@ -1239,7 +1287,8 @@ class CNNProcessor {
             comparingCtx.fillStyle = 'white';
             comparingCtx.fillRect(0, 0, 80, 80);
 
-            if (sample.imageData) {
+            if (sample.imageData && typeof sample.imageData === 'object') {
+                // ImageData对象
                 comparingCtx.drawImage(
                     (() => {
                         const temp = document.createElement('canvas');
@@ -1251,6 +1300,11 @@ class CNNProcessor {
                     })(),
                     0, 0, 80, 80
                 );
+            } else if (sample.imageDataURL) {
+                // 从URL加载
+                const img = new Image();
+                img.src = sample.imageDataURL;
+                comparingCtx.drawImage(img, 0, 0, 80, 80);
             } else {
                 comparingCtx.fillStyle = '#f0f0f0';
                 comparingCtx.fillRect(0, 0, 80, 80);
@@ -1279,7 +1333,7 @@ class CNNProcessor {
             miniCanvas.style.borderRadius = '6px';
 
             const miniCtx = miniCanvas.getContext('2d');
-            if (sample.imageData) {
+            if (sample.imageData && typeof sample.imageData === 'object') {
                 miniCtx.drawImage(
                     (() => {
                         const temp = document.createElement('canvas');
@@ -1291,6 +1345,10 @@ class CNNProcessor {
                     })(),
                     0, 0, 40, 40
                 );
+            } else if (sample.imageDataURL) {
+                const img = new Image();
+                img.src = sample.imageDataURL;
+                miniCtx.drawImage(img, 0, 0, 40, 40);
             }
 
             const miniLabel = document.createElement('div');
@@ -1321,7 +1379,7 @@ class CNNProcessor {
         comparingCtx.fillStyle = 'white';
         comparingCtx.fillRect(0, 0, 80, 80);
 
-        if (topSample.imageData) {
+        if (topSample.imageData && typeof topSample.imageData === 'object') {
             comparingCtx.drawImage(
                 (() => {
                     const temp = document.createElement('canvas');
@@ -1333,6 +1391,10 @@ class CNNProcessor {
                 })(),
                 0, 0, 80, 80
             );
+        } else if (topSample.imageDataURL) {
+            const img = new Image();
+            img.src = topSample.imageDataURL;
+            comparingCtx.drawImage(img, 0, 0, 80, 80);
         }
 
         comparingLabel.textContent = `${topSample.label === 'smile' ? '😊' : '😢'} 最相似样本`;
@@ -1370,7 +1432,22 @@ class CNNProcessor {
         container.appendChild(detailDiv);
 
         // 计算训练样本的池化结果（需要重新计算）
-        const imageData = topSample.imageData || this.drawingBoard.getImageData();
+        let imageData;
+        if (topSample.imageData && typeof topSample.imageData === 'object') {
+            imageData = topSample.imageData;
+        } else if (topSample.imageDataURL) {
+            // 从URL恢复ImageData
+            const img = new Image();
+            img.src = topSample.imageDataURL;
+            const canvas = document.createElement('canvas');
+            canvas.width = 280;
+            canvas.height = 280;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, 280, 280);
+            imageData = ctx.getImageData(0, 0, 280, 280);
+        } else {
+            imageData = this.drawingBoard.getImageData();
+        }
         const grayMatrix = ImageProcessor.toGrayscaleMatrix(imageData, 28);
 
         // 为训练样本计算特征
@@ -1629,7 +1706,7 @@ class CNNProcessor {
                 const sample = samples[neighbor.index];
                 const canvas = document.getElementById(`similarSampleCanvas${i}`);
 
-                if (canvas && sample.imageData) {
+                if (canvas && sample.imageData && typeof sample.imageData === 'object') {
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(
                         (() => {
@@ -1642,6 +1719,14 @@ class CNNProcessor {
                         })(),
                         0, 0, 100, 100
                     );
+                } else if (canvas && sample.imageDataURL) {
+                    // 从URL加载图像
+                    const ctx = canvas.getContext('2d');
+                    const img = new Image();
+                    img.onload = () => {
+                        ctx.drawImage(img, 0, 0, 100, 100);
+                    };
+                    img.src = sample.imageDataURL;
                 } else if (canvas) {
                     // 如果没有imageData，显示占位符
                     const ctx = canvas.getContext('2d');
@@ -1886,7 +1971,8 @@ document.addEventListener('DOMContentLoaded', () => {
             canvas.height = 60;
 
             // 如果有imageData，绘制缩略图
-            if (sample.imageData) {
+            if (sample.imageData && typeof sample.imageData === 'object') {
+                // ImageData对象，直接绘制
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(
                     (() => {
@@ -1899,8 +1985,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     })(),
                     0, 0, 60, 60
                 );
+            } else if (sample.imageDataURL) {
+                // 还有URL但imageData还在加载中，异步绘制
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0, 60, 60);
+                };
+                img.src = sample.imageDataURL;
+                // 先显示占位符
+                ctx.fillStyle = '#f8f9fa';
+                ctx.fillRect(0, 0, 60, 60);
+                ctx.fillStyle = '#ccc';
+                ctx.font = '10px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('加载中...', 30, 30);
             } else {
-                // 如果没有imageData（从localStorage加载的），显示占位符
+                // 如果没有imageData，显示占位符
                 const ctx = canvas.getContext('2d');
                 ctx.fillStyle = '#f0f0f0';
                 ctx.fillRect(0, 0, 60, 60);
@@ -1941,6 +2042,17 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('smileCount').textContent = stats.smileCount;
         document.getElementById('sadCount').textContent = stats.sadCount;
     }
+
+    // 监听训练数据加载完成事件
+    window.addEventListener('trainingDataLoaded', () => {
+        updateTrainingSamplesDisplay();
+        updateStats();
+        console.log('训练数据已从本地缓存加载完成');
+    });
+
+    // 初始化时更新显示
+    updateTrainingSamplesDisplay();
+    updateStats();
 
     // 模式切换
     document.getElementById('recognitionMode').addEventListener('click', () => {
