@@ -1,3 +1,13 @@
+// Debug模式检测
+const DEBUG_MODE = (() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('debug') === 'true';
+})();
+
+if (DEBUG_MODE) {
+    console.log('🐛 Debug模式已启用 - 将跳过动画直接显示结果');
+}
+
 // 训练数据管理类
 class TrainingDataManager {
     constructor() {
@@ -1018,8 +1028,10 @@ class Visualizer {
                 // 更新输出矩阵
                 Visualizer.drawPartialMatrix(outputCanvas, outputMatrix, cellSize, x, y);
 
-                // 延迟，创建动画效果
-                await new Promise(resolve => setTimeout(resolve, speed));
+                // 延迟，创建动画效果（Debug模式下跳过）
+                if (!DEBUG_MODE) {
+                    await new Promise(resolve => setTimeout(resolve, speed));
+                }
             }
         }
 
@@ -1117,8 +1129,10 @@ class Visualizer {
                 // 更新输出矩阵（使用热力图）
                 Visualizer.drawPartialMatrix(outputCanvas, outputMatrix, cellSize, x, y, true);
 
-                // 延迟，创建动画效果
-                await new Promise(resolve => setTimeout(resolve, speed));
+                // 延迟，创建动画效果（Debug模式下跳过）
+                if (!DEBUG_MODE) {
+                    await new Promise(resolve => setTimeout(resolve, speed));
+                }
             }
         }
 
@@ -1168,7 +1182,10 @@ class Visualizer {
                 // 更新输出矩阵
                 Visualizer.drawPartialMatrix(outputCanvas, outputMatrix, outputCellSize, x, y, useHeatmap);
 
-                await new Promise(resolve => setTimeout(resolve, speed));
+                // Debug模式下跳过延迟
+                if (!DEBUG_MODE) {
+                    await new Promise(resolve => setTimeout(resolve, speed));
+                }
             }
         }
 
@@ -2158,6 +2175,10 @@ class CNNProcessor {
     }
 
     delay(ms) {
+        // Debug模式下跳过延迟
+        if (DEBUG_MODE) {
+            return Promise.resolve();
+        }
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
@@ -2223,6 +2244,14 @@ class CNNProcessor {
 
 // 主程序
 document.addEventListener('DOMContentLoaded', () => {
+    // 显示Debug模式指示器
+    if (DEBUG_MODE) {
+        const debugIndicator = document.getElementById('debugIndicator');
+        if (debugIndicator) {
+            debugIndicator.style.display = 'block';
+        }
+    }
+
     const drawingBoard = new DrawingBoard('drawingCanvas');
     const processor = new CNNProcessor(drawingBoard);
 
