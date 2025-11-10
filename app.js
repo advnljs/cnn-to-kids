@@ -190,7 +190,7 @@ class KNNClassifier {
         return Math.sqrt(sum);
     }
 
-    // 将矩阵展平为特征向量
+    // 将矩阵展平为特征向量（旧方法，507维，位置相关）
     static flattenFeatures(poolResults) {
         const features = [];
         // 按照固定顺序展平3个特征图
@@ -202,6 +202,45 @@ class KNNClassifier {
                 }
             }
         }
+        return features;
+    }
+
+    // 使用全局池化提取位置不变特征（新方法，6维，位置无关）
+    static extractGlobalFeatures(poolResults) {
+        const features = [];
+        // 对每个特征图进行全局平均池化和全局最大池化
+        for (let name of ['horizontal', 'vertical', 'edge']) {
+            const matrix = poolResults[name];
+            features.push(ImageProcessor.globalAveragePool(matrix));  // 平均值
+            features.push(ImageProcessor.globalMaxPool(matrix));      // 最大值
+        }
+        // 返回6维特征: [h_avg, h_max, v_avg, v_max, e_avg, e_max]
+        return features;
+    }
+
+    // 直接使用降采样的展平特征（简化版，降低维度但保留空间信息）
+    static extractRegionalFeatures(poolResults) {
+        const features = [];
+
+        for (let name of ['horizontal', 'vertical', 'edge']) {
+            const matrix = poolResults[name];
+            const size = matrix.length; // 13
+
+            // 降采样到 5×5（每3个像素取一个代表）
+            const downSize = 5;
+            const step = Math.floor(size / downSize);
+
+            for (let y = 0; y < downSize; y++) {
+                for (let x = 0; x < downSize; x++) {
+                    const srcY = Math.min(y * step + Math.floor(step / 2), size - 1);
+                    const srcX = Math.min(x * step + Math.floor(step / 2), size - 1);
+                    features.push(matrix[srcY][srcX]);
+                }
+            }
+        }
+
+        // 3个特征图 × 5×5 = 75维
+        // 比507维小很多，但比6维保留更多空间信息
         return features;
     }
 
@@ -443,6 +482,98 @@ class DrawingBoard {
 
 // 图像处理类
 class ImageProcessor {
+    // 预处理：检测内容边界框
+    static detectBoundingBox(imageData) {
+        const { width, height, data } = imageData;
+        let minX = width, maxX = 0, minY = height, maxY = 0;
+        let hasContent = false;
+
+        // 扫描所有像素，找到非白色像素的边界
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = (y * width + x) * 4;
+                const r = data[idx];
+                const g = data[idx + 1];
+                const b = data[idx + 2];
+
+                // 判断是否为非白色像素（阈值240，允许一些浅灰色）
+                if (r < 240 || g < 240 || b < 240) {
+                    hasContent = true;
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+            }
+        }
+
+        if (!hasContent) {
+            // 如果没有内容，返回整个画布
+            return { minX: 0, minY: 0, maxX: width - 1, maxY: height - 1, width, height };
+        }
+
+        return {
+            minX,
+            minY,
+            maxX,
+            maxY,
+            width: maxX - minX + 1,
+            height: maxY - minY + 1
+        };
+    }
+
+    // 预处理：裁剪、居中、尺度归一化
+    static preprocessImage(imageData, targetSize = 280) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = targetSize;
+        canvas.height = targetSize;
+
+        // 绘制白色背景
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, targetSize, targetSize);
+
+        // 检测边界框
+        const bbox = ImageProcessor.detectBoundingBox(imageData);
+
+        if (bbox.width === 0 || bbox.height === 0) {
+            // 空图像，返回白色画布
+            return ctx.getImageData(0, 0, targetSize, targetSize);
+        }
+
+        // 创建临时画布，绘制原始图像
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = imageData.width;
+        tempCanvas.height = imageData.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.putImageData(imageData, 0, 0);
+
+        // 计算缩放比例，保持宽高比
+        const padding = 20; // 添加padding，避免贴边
+        const maxContentSize = targetSize - padding * 2;
+        const scale = Math.min(
+            maxContentSize / bbox.width,
+            maxContentSize / bbox.height
+        );
+
+        // 计算缩放后的尺寸
+        const scaledWidth = bbox.width * scale;
+        const scaledHeight = bbox.height * scale;
+
+        // 计算居中位置
+        const offsetX = (targetSize - scaledWidth) / 2;
+        const offsetY = (targetSize - scaledHeight) / 2;
+
+        // 绘制到目标画布（裁剪+缩放+居中）
+        ctx.drawImage(
+            tempCanvas,
+            bbox.minX, bbox.minY, bbox.width, bbox.height,  // 源区域（裁剪）
+            offsetX, offsetY, scaledWidth, scaledHeight      // 目标区域（缩放+居中）
+        );
+
+        return ctx.getImageData(0, 0, targetSize, targetSize);
+    }
+
     // 将图像数据转换为灰度矩阵（使用区域平均采样，减少失真）
     static toGrayscaleMatrix(imageData, targetSize = 28) {
         const { width, height, data } = imageData;
@@ -537,6 +668,34 @@ class ImageProcessor {
         }
 
         return output;
+    }
+
+    // 全局平均池化（提取位置不变特征）
+    static globalAveragePool(matrix) {
+        let sum = 0;
+        let count = 0;
+
+        for (let row of matrix) {
+            for (let val of row) {
+                sum += val;
+                count++;
+            }
+        }
+
+        return count > 0 ? sum / count : 0;
+    }
+
+    // 全局最大池化（提取位置不变特征）
+    static globalMaxPool(matrix) {
+        let max = -Infinity;
+
+        for (let row of matrix) {
+            for (let val of row) {
+                max = Math.max(max, val);
+            }
+        }
+
+        return max;
     }
 
     // 规范化矩阵值到 0-1
@@ -966,9 +1125,10 @@ class CNNProcessor {
         this.stepsContainer.innerHTML = '';
         this.finalResult.style.display = 'none';
 
-        // 获取图像数据
-        const imageData = this.drawingBoard.getImageData();
-        const grayMatrix = ImageProcessor.toGrayscaleMatrix(imageData, 28);
+        // 获取图像数据并预处理（居中+尺度归一化）
+        const rawImageData = this.drawingBoard.getImageData();
+        const preprocessedImageData = ImageProcessor.preprocessImage(rawImageData, 280);
+        const grayMatrix = ImageProcessor.toGrayscaleMatrix(preprocessedImageData, 28);
 
         // 步骤1：显示原始图像
         await this.showStep1(grayMatrix);
@@ -1261,7 +1421,13 @@ class CNNProcessor {
         );
 
         const samples = this.trainingManager.getSamples();
-        const currentFeatures = KNNClassifier.flattenFeatures(poolResults);
+        const currentFeatures = KNNClassifier.extractRegionalFeatures(poolResults);
+
+        // 调试：输出当前特征
+        console.log('=== 当前图像特征 (75维降采样特征) ===');
+        console.log('特征向量长度:', currentFeatures.length);
+        console.log('前10个特征:', currentFeatures.slice(0, 10).map(f => f.toFixed(4)));
+
         const progressBar = document.getElementById('matchingProgressBar');
         const status = document.getElementById('matchingStatus');
         const comparingCanvas = document.getElementById('comparingSample');
@@ -1280,6 +1446,12 @@ class CNNProcessor {
             const sample = samples[i];
             const distance = KNNClassifier.distance(currentFeatures, sample.features);
             const similarity = Math.max(0, 100 - distance * 10).toFixed(1);
+
+            // 调试：输出训练样本特征
+            console.log(`样本 ${i + 1} (${sample.label}):`);
+            console.log('  特征向量:', sample.features);
+            console.log('  距离:', distance);
+            console.log('  相似度:', similarity);
 
             distances.push({ index: i, distance, similarity, label: sample.label });
 
@@ -1432,6 +1604,7 @@ class CNNProcessor {
         container.appendChild(detailDiv);
 
         // 计算训练样本的池化结果（需要重新计算）
+        // 注意：训练样本保存的已经是预处理后的图像，直接使用即可
         let imageData;
         if (topSample.imageData && typeof topSample.imageData === 'object') {
             imageData = topSample.imageData;
@@ -1446,7 +1619,9 @@ class CNNProcessor {
             ctx.drawImage(img, 0, 0, 280, 280);
             imageData = ctx.getImageData(0, 0, 280, 280);
         } else {
-            imageData = this.drawingBoard.getImageData();
+            // 如果没有训练样本数据，使用当前画布的预处理图像
+            const rawImageData = this.drawingBoard.getImageData();
+            imageData = ImageProcessor.preprocessImage(rawImageData, 280);
         }
         const grayMatrix = ImageProcessor.toGrayscaleMatrix(imageData, 28);
 
@@ -1752,7 +1927,7 @@ class CNNProcessor {
         const trainingSamples = this.trainingManager.getSamples();
         if (trainingSamples.length >= 2) {
             // 至少有2个样本才使用KNN
-            const featureVector = KNNClassifier.flattenFeatures(features);
+            const featureVector = KNNClassifier.extractRegionalFeatures(features);
             const prediction = this.classifier.predict(featureVector, trainingSamples);
 
             if (prediction) {
@@ -1895,8 +2070,9 @@ class CNNProcessor {
     async addTrainingSample(label) {
         if (!this.lastPoolResults) {
             // 如果还没有处理过图像，先处理一次
-            const imageData = this.drawingBoard.getImageData();
-            const grayMatrix = ImageProcessor.toGrayscaleMatrix(imageData, 28);
+            const rawImageData = this.drawingBoard.getImageData();
+            const preprocessedImageData = ImageProcessor.preprocessImage(rawImageData, 280);
+            const grayMatrix = ImageProcessor.toGrayscaleMatrix(preprocessedImageData, 28);
             const convResults = {};
 
             for (let [name, kernel] of Object.entries(this.kernels)) {
@@ -1912,14 +2088,16 @@ class CNNProcessor {
             this.lastPoolResults = poolResults;
         }
 
-        // 提取特征向量
-        const features = KNNClassifier.flattenFeatures(this.lastPoolResults);
+        // 提取特征向量（使用降采样，75维特征）
+        const features = KNNClassifier.extractRegionalFeatures(this.lastPoolResults);
 
-        // 获取当前画布的图像数据（用于显示缩略图）
-        const imageData = this.drawingBoard.getImageData();
+        // 获取预处理后的图像数据（用于显示缩略图和后续对比）
+        // 重要：保存预处理后的图像，因为特征是从预处理后的图像提取的
+        const rawImageData = this.drawingBoard.getImageData();
+        const preprocessedImageData = ImageProcessor.preprocessImage(rawImageData, 280);
 
         // 添加到训练数据
-        this.trainingManager.addSample(features, label, imageData);
+        this.trainingManager.addSample(features, label, preprocessedImageData);
 
         // 清空lastPoolResults，准备下一次
         this.lastPoolResults = null;
