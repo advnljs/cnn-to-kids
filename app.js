@@ -190,6 +190,33 @@ class KNNClassifier {
         return Math.sqrt(sum);
     }
 
+    // 加权距离计算：给判别特征更高的权重
+    static weightedDistance(features1, features2) {
+        // 84维特征：前75维是降采样特征，后9维是判别特征
+        const spatialDims = 75;
+        const discriminativeDims = 9;
+
+        // 权重：判别特征的权重设为空间特征的10倍
+        const spatialWeight = 1.0;
+        const discriminativeWeight = 10.0;
+
+        let sum = 0;
+
+        // 前75维：空间特征（权重1.0）
+        for (let i = 0; i < spatialDims; i++) {
+            const diff = features1[i] - features2[i];
+            sum += spatialWeight * diff * diff;
+        }
+
+        // 后9维：判别特征（权重10.0）
+        for (let i = spatialDims; i < spatialDims + discriminativeDims; i++) {
+            const diff = features1[i] - features2[i];
+            sum += discriminativeWeight * diff * diff;
+        }
+
+        return Math.sqrt(sum);
+    }
+
     // 将矩阵展平为特征向量（旧方法，507维，位置相关）
     static flattenFeatures(poolResults) {
         const features = [];
@@ -218,15 +245,16 @@ class KNNClassifier {
         return features;
     }
 
-    // 直接使用降采样的展平特征（简化版，降低维度但保留空间信息）
+    // 混合特征提取：降采样 + 关键区域对比
     static extractRegionalFeatures(poolResults) {
         const features = [];
 
+        // 第一部分：降采样特征（保留空间信息）
         for (let name of ['horizontal', 'vertical', 'edge']) {
             const matrix = poolResults[name];
             const size = matrix.length; // 13
 
-            // 降采样到 5×5（每3个像素取一个代表）
+            // 降采样到 5×5
             const downSize = 5;
             const step = Math.floor(size / downSize);
 
@@ -239,22 +267,83 @@ class KNNClassifier {
             }
         }
 
+        // 第二部分：关键判别特征（专门区分笑脸/哭脸）
+        const horizontal = poolResults['horizontal'];
+        const size = horizontal.length;
+
+        // 将图像分成上、中、下三个区域
+        const topThird = Math.floor(size / 3);
+        const bottomThird = Math.floor(size * 2 / 3);
+
+        // 提取上半部分的横线特征（笑脸嘴巴上翘）
+        let topSum = 0, topCount = 0, topMax = -Infinity;
+        for (let y = 0; y < topThird; y++) {
+            for (let x = 0; x < size; x++) {
+                const val = horizontal[y][x];
+                topSum += val;
+                topCount++;
+                topMax = Math.max(topMax, val);
+            }
+        }
+        const topAvg = topCount > 0 ? topSum / topCount : 0;
+        if (topMax === -Infinity) topMax = 0;
+
+        // 提取中间部分的横线特征
+        let midSum = 0, midCount = 0, midMax = -Infinity;
+        for (let y = topThird; y < bottomThird; y++) {
+            for (let x = 0; x < size; x++) {
+                const val = horizontal[y][x];
+                midSum += val;
+                midCount++;
+                midMax = Math.max(midMax, val);
+            }
+        }
+        const midAvg = midCount > 0 ? midSum / midCount : 0;
+        if (midMax === -Infinity) midMax = 0;
+
+        // 提取下半部分的横线特征（哭脸嘴巴下翘）
+        let bottomSum = 0, bottomCount = 0, bottomMax = -Infinity;
+        for (let y = bottomThird; y < size; y++) {
+            for (let x = 0; x < size; x++) {
+                const val = horizontal[y][x];
+                bottomSum += val;
+                bottomCount++;
+                bottomMax = Math.max(bottomMax, val);
+            }
+        }
+        const bottomAvg = bottomCount > 0 ? bottomSum / bottomCount : 0;
+        if (bottomMax === -Infinity) bottomMax = 0;
+
+        // 添加判别特征
+        features.push(topAvg);      // 上部平均值
+        features.push(topMax);      // 上部最大值
+        features.push(midAvg);      // 中部平均值
+        features.push(midMax);      // 中部最大值
+        features.push(bottomAvg);   // 下部平均值
+        features.push(bottomMax);   // 下部最大值
+
+        // 添加对比特征（最关键！）
+        features.push(topAvg - bottomAvg);        // 上下差异（笑脸为正，哭脸为负）
+        features.push(topMax - bottomMax);        // 上下最大值差异
+        features.push((topAvg + topMax) - (bottomAvg + bottomMax));  // 综合差异
+
         // 3个特征图 × 5×5 = 75维
-        // 比507维小很多，但比6维保留更多空间信息
+        // + 判别特征 9维
+        // = 84维总特征
         return features;
     }
 
-    // 预测
+    // 预测（使用加权距离）
     predict(features, trainingSamples) {
         if (trainingSamples.length === 0) {
             return null;
         }
 
-        // 计算与所有训练样本的距离
+        // 计算与所有训练样本的距离（使用加权距离）
         const distances = trainingSamples.map((sample, index) => ({
             index,
             label: sample.label,
-            distance: KNNClassifier.distance(features, sample.features)
+            distance: KNNClassifier.weightedDistance(features, sample.features)
         }));
 
         // 按距离排序
@@ -1424,9 +1513,15 @@ class CNNProcessor {
         const currentFeatures = KNNClassifier.extractRegionalFeatures(poolResults);
 
         // 调试：输出当前特征
-        console.log('=== 当前图像特征 (75维降采样特征) ===');
+        console.log('=== 当前图像特征 (84维混合特征) ===');
         console.log('特征向量长度:', currentFeatures.length);
-        console.log('前10个特征:', currentFeatures.slice(0, 10).map(f => f.toFixed(4)));
+        console.log('降采样特征(前10个):', currentFeatures.slice(0, 10).map(f => f.toFixed(4)));
+        console.log('判别特征(上/中/下 avg/max):', currentFeatures.slice(75, 81).map(f => f.toFixed(4)));
+        console.log('关键对比特征:', {
+            '上-下平均差': currentFeatures[81]?.toFixed(4),
+            '上-下最大差': currentFeatures[82]?.toFixed(4),
+            '综合差异': currentFeatures[83]?.toFixed(4)
+        });
 
         const progressBar = document.getElementById('matchingProgressBar');
         const status = document.getElementById('matchingStatus');
@@ -2088,7 +2183,7 @@ class CNNProcessor {
             this.lastPoolResults = poolResults;
         }
 
-        // 提取特征向量（使用降采样，75维特征）
+        // 提取特征向量（使用混合特征，84维）
         const features = KNNClassifier.extractRegionalFeatures(this.lastPoolResults);
 
         // 获取预处理后的图像数据（用于显示缩略图和后续对比）
