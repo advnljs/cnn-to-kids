@@ -371,18 +371,37 @@ class KNNClassifier {
             labelCounts[neighbor.label] = (labelCounts[neighbor.label] || 0) + 1;
         });
 
-        // 找出最多的标签
-        let maxCount = 0;
-        let predictedLabel = null;
-        for (let label in labelCounts) {
-            if (labelCounts[label] > maxCount) {
-                maxCount = labelCounts[label];
-                predictedLabel = label;
-            }
-        }
+        // 强领先机制：如果第一近邻明显优于第二近邻，则直接采纳第一近邻结果
+        // 判定依据（任一满足即可）：
+        // 1) 距离比率阈值：d1 / d0 >= 1.8
+        // 2) 相似度差距阈值：((d1 - d0) * 10) >= 20  —— 与可视化中 100 - d*10 的映射一致
+        const d0 = neighbors[0]?.distance ?? Infinity;
+        const d1 = neighbors[1]?.distance ?? Infinity;
+        const ratioThreshold = 1.8;
+        const similarityMarginThreshold = 20; // 百分点
+        const ratio1 = isFinite(d0) ? (d1 / (d0 + 1e-9)) : 1;
+        const similarityMargin = (d1 - d0) * 10; // 约等于 sim0 - sim1
 
-        // 计算置信度
-        const confidence = Math.round((maxCount / k) * 100);
+        let predictedLabel = null;
+        let confidence = 0;
+
+        if (isFinite(d0) && isFinite(d1) && (ratio1 >= ratioThreshold || similarityMargin >= similarityMarginThreshold)) {
+            // 直接采用第一近邻
+            predictedLabel = neighbors[0].label;
+            // 置信度基于第一近邻的相似度映射（与可视化一致），并给出最低保底
+            const topSimilarity = Math.max(0, Math.min(99, Math.round(100 - d0 * 10)));
+            confidence = Math.max(85, topSimilarity);
+        } else {
+            // 常规KNN投票
+            let maxCount = 0;
+            for (let label in labelCounts) {
+                if (labelCounts[label] > maxCount) {
+                    maxCount = labelCounts[label];
+                    predictedLabel = label;
+                }
+            }
+            confidence = Math.round((maxCount / k) * 100);
+        }
 
         return {
             label: predictedLabel,
