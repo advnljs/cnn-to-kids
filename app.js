@@ -271,6 +271,25 @@ class KNNClassifier {
         this.k = k;  // K近邻的K值
     }
 
+    // 将距离映射为 0-100 的相似度（用于展示）
+    // 说明：我们用“最大可能距离”做归一化，让数值更直观、跨样本更稳定。
+    // 加权距离的最大值（特征都在0-1时）约为 sqrt(75*1 + 9*10)。
+    static maxWeightedDistance() {
+        const spatialDims = 75;
+        const discriminativeDims = 9;
+        const spatialWeight = 1.0;
+        const discriminativeWeight = 10.0;
+        return Math.sqrt(spatialDims * spatialWeight + discriminativeDims * discriminativeWeight);
+    }
+
+    static distanceToSimilarity(distance, maxDistance = KNNClassifier.maxWeightedDistance()) {
+        if (!isFinite(distance)) return 0;
+        // 数值极小的距离当作完全相同，避免浮点误差导致“不是100%”
+        if (Math.abs(distance) < 1e-9) return 100;
+        const sim = (1 - (distance / (maxDistance + 1e-12))) * 100;
+        return Math.max(0, Math.min(100, sim));
+    }
+
     // 计算两个特征向量之间的欧氏距离
     static distance(features1, features2) {
         let sum = 0;
@@ -1801,6 +1820,7 @@ class CNNProcessor {
         const distanceValue = document.getElementById('distanceValue');
         const comparedPreview = document.getElementById('comparedSamplesPreview');
 
+        const maxDist = KNNClassifier.maxWeightedDistance();
         let distances = [];
 
         // 动画展示匹配过程
@@ -1809,8 +1829,9 @@ class CNNProcessor {
             progressBar.style.width = `${progress}%`;
 
             const sample = samples[i];
-            const distance = KNNClassifier.distance(currentFeatures, sample.features);
-            const similarity = Math.max(0, 100 - distance * 10).toFixed(1);
+            // 用加权距离（与最终KNN预测一致），并用归一化映射得到更直观的相似度
+            const distance = KNNClassifier.weightedDistance(currentFeatures, sample.features);
+            const similarity = KNNClassifier.distanceToSimilarity(distance, maxDist).toFixed(1);
 
             // 调试：输出训练样本特征
             console.log(`样本 ${i + 1} (${sample.label}):`);
@@ -2210,7 +2231,7 @@ class CNNProcessor {
         for (let i = 0; i < neighbors.length; i++) {
             const neighbor = neighbors[i];
             const sample = samples[neighbor.index];
-            const similarity = Math.max(0, 100 - neighbor.distance * 10).toFixed(1);
+            const similarity = KNNClassifier.distanceToSimilarity(neighbor.distance).toFixed(1);
             const isMatch = neighbor.label === predictedLabelEn;
 
             html += `
@@ -2449,13 +2470,18 @@ class CNNProcessor {
             await new Promise(resolve => requestAnimationFrame(resolve));
         }
         try {
-        if (!this.lastPoolResults) {
-            // 如果还没有处理过图像，先处理一次
+            // 重要修复：
+            // 训练时必须“从当前画布重新计算特征”，避免出现：
+            // 缩略图是A（比如简化猫），但特征却来自上一张图B（比如标准猫）
+            // 这会导致看起来不同的两张图也可能显示“100%相似/距离0”。
+
+            // 从当前画布获取并预处理（缩放+居中）
             const rawImageData = this.drawingBoard.getImageData();
             const preprocessedImageData = ImageProcessor.preprocessImage(rawImageData, 280);
+
+            // 计算特征（卷积->归一化->池化）
             const grayMatrix = ImageProcessor.toGrayscaleMatrix(preprocessedImageData, 28);
             const convResults = {};
-
             for (let [name, kernel] of Object.entries(this.kernels)) {
                 const convResult = ImageProcessor.convolve(grayMatrix, kernel);
                 convResults[name] = ImageProcessor.normalize(convResult);
@@ -2466,22 +2492,14 @@ class CNNProcessor {
                 poolResults[name] = ImageProcessor.maxPool(matrix, 2);
             }
 
-            this.lastPoolResults = poolResults;
-        }
+            // 提取特征向量（84维混合特征）
+            const features = KNNClassifier.extractRegionalFeatures(poolResults);
 
-        // 提取特征向量（使用混合特征，84维）
-        const features = KNNClassifier.extractRegionalFeatures(this.lastPoolResults);
+            // 保存训练数据（缩略图用 preprocessedImageData，保证和特征一致）
+            this.trainingManager.addSample(features, label, preprocessedImageData);
 
-        // 获取预处理后的图像数据（用于显示缩略图和后续对比）
-        // 重要：保存预处理后的图像，因为特征是从预处理后的图像提取的
-        const rawImageData = this.drawingBoard.getImageData();
-        const preprocessedImageData = ImageProcessor.preprocessImage(rawImageData, 280);
-
-        // 添加到训练数据
-        this.trainingManager.addSample(features, label, preprocessedImageData);
-
-        // 清空lastPoolResults，准备下一次
-        this.lastPoolResults = null;
+            // 清空缓存，避免被误用
+            this.lastPoolResults = null;
 
             return this.trainingManager.getStats();
         } finally {
