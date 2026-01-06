@@ -1496,20 +1496,20 @@ class CNNProcessor {
             const preprocessedImageData = ImageProcessor.preprocessImage(rawImageData, 280);
             const grayMatrix = ImageProcessor.toGrayscaleMatrix(preprocessedImageData, 28);
 
-            // 步骤1：显示原始图像
+            // 步骤1：AI小侦探看到图像
             await this.showStep1(grayMatrix);
-            await this.delay(1000);
+            await this.delay(800);
 
-            // 步骤2：卷积 - 特征探测
-            const convResults = await this.showStep2(grayMatrix);
-            await this.delay(1500);
-
-            // 步骤3：池化 - 信息压缩（用热力图显示）
-            const poolResults = await this.showStep3(convResults);
+            // 步骤2：AI小侦探寻找线索（包含卷积+池化计算）
+            const poolResults = await this.showStep2(grayMatrix);
             this.lastPoolResults = poolResults;  // 保存用于训练
-            await this.delay(1500);
+            await this.delay(800);
 
-            // 步骤4：分类判断
+            // 步骤3：展示收集到的线索卡片
+            await this.showStep3(poolResults);
+            await this.delay(800);
+
+            // 步骤4：对比档案，得出结论
             await this.showStep4(grayMatrix, poolResults);
         } finally {
             if (DEBUG_MODE) {
@@ -1522,193 +1522,424 @@ class CNNProcessor {
         const step = document.createElement('div');
         step.className = 'step';
         step.innerHTML = `
-            <h3>📸 步骤 1：看到图像</h3>
+            <h3>📸 步骤 1：AI小侦探看到了你的画</h3>
             <div class="step-description">
-                计算机把你的画分成了一个 28×28 的小格子网格，每个格子记录了它的"黑白程度"。
-                白色格子的值接近 1，黑色格子的值接近 0。
+                <div class="detective-avatar">🤖</div>
+                <strong>"哇！让我仔细看看这是什么..."</strong><br>
+                AI小侦探把你的画记在脑子里，准备开始寻找线索！
             </div>
-            <div class="visualization">
-                <div class="grid-display">
-                    <div class="grid-title">原始图像网格 (28×28)</div>
-                    <canvas id="originalMatrix"></canvas>
+            <div class="visualization" style="justify-content: center;">
+                <div style="text-align: center;">
+                    <canvas id="originalImage" width="200" height="200" style="border: 4px solid #667eea; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);"></canvas>
+                    <div style="margin-top: 10px; font-size: 14px; color: #666;">你画的图</div>
                 </div>
             </div>
         `;
         this.stepsContainer.appendChild(step);
 
         await this.delay(100);
-        const canvas = document.getElementById('originalMatrix');
-        Visualizer.drawMatrix(canvas, matrix, 8);
+        
+        // 绘制原始图像（更大、更清晰）
+        const canvas = document.getElementById('originalImage');
+        const ctx = canvas.getContext('2d');
+        const rawImageData = this.drawingBoard.getImageData();
+        
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = rawImageData.width;
+        tempCanvas.height = rawImageData.height;
+        tempCanvas.getContext('2d').putImageData(rawImageData, 0, 0);
+        
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, 200, 200);
+        ctx.drawImage(tempCanvas, 0, 0, 200, 200);
     }
 
     async showStep2(matrix) {
+        // 先在后台计算特征（不展示复杂过程）
+        const convResults = {};
+        for (let [name, kernel] of Object.entries(this.kernels)) {
+            const convResult = ImageProcessor.convolve(matrix, kernel);
+            convResults[name] = ImageProcessor.normalize(convResult);
+        }
+        
+        const poolResults = {};
+        for (let [name, mat] of Object.entries(convResults)) {
+            poolResults[name] = ImageProcessor.maxPool(mat, 2);
+        }
+        
+        // 分析特征（简单规则）
+        const features = this.analyzeFeatures(poolResults);
+        
         const step = document.createElement('div');
         step.className = 'step';
         step.innerHTML = `
             <h3>🔍 步骤 2：AI小侦探开始寻找线索</h3>
             <div class="step-description">
                 <div class="detective-avatar">🤖</div>
-                AI小侦探拿着放大镜仔细观察你的画！它会寻找这些线索：<br>
-                <div style="display: flex; gap: 15px; margin-top: 10px; flex-wrap: wrap;">
-                    <div class="clue-card">📐 <strong>三角形</strong>（可能是耳朵）</div>
-                    <div class="clue-card">⭕ <strong>圆形</strong>（可能是脸或花瓣）</div>
-                    <div class="clue-card">📏 <strong>直线</strong>（可能是花茎）</div>
-                </div>
+                <strong>"让我拿放大镜仔细看看..."</strong>
             </div>
-            <div class="visualization" id="convViz">
+            <div class="visualization" style="justify-content: center;">
+                <div style="position: relative; display: inline-block;">
+                    <canvas id="scanCanvas" width="280" height="280" style="border: 4px solid #667eea; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);"></canvas>
+                    <div id="magnifier" style="position: absolute; width: 60px; height: 60px; border: 4px solid #ff6b6b; border-radius: 50%; pointer-events: none; opacity: 0; transition: all 0.5s ease; box-shadow: 0 0 20px rgba(255,107,107,0.5);"></div>
+                    <div id="speechBubble" style="position: absolute; background: #333; color: white; padding: 10px 15px; border-radius: 20px; font-size: 16px; font-weight: bold; opacity: 0; transition: opacity 0.3s; white-space: nowrap; z-index: 100;"></div>
+                </div>
             </div>
         `;
         this.stepsContainer.appendChild(step);
 
-        await this.delay(100);
+        await this.delay(300);
+        
+        // 绘制原图
+        const canvas = document.getElementById('scanCanvas');
+        const ctx = canvas.getContext('2d');
+        const rawImageData = this.drawingBoard.getImageData();
+        
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = rawImageData.width;
+        tempCanvas.height = rawImageData.height;
+        tempCanvas.getContext('2d').putImageData(rawImageData, 0, 0);
+        
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, 280, 280);
+        ctx.drawImage(tempCanvas, 0, 0, 280, 280);
 
-        const results = {};
-        const vizContainer = document.getElementById('convViz');
-
-        const kernelConfigs = [
-            { name: 'edge', label: '🔎 寻找形状', icon: '◇', desc: '扫描轮廓中...' },
-            { name: 'vertical', label: '📏 寻找竖线', icon: '┃', desc: '扫描竖线中...' },
-            { name: 'horizontal', label: '📐 寻找横线', icon: '━', desc: '扫描横线中...' }
+        const magnifier = document.getElementById('magnifier');
+        const bubble = document.getElementById('speechBubble');
+        
+        // 扫描动画序列
+        const scanSequence = [
+            { 
+                region: 'top', 
+                x: 140, y: 50, 
+                found: features.hasEars,
+                foundText: '✨ 发现尖尖的三角形！这可能是耳朵！',
+                notFoundText: '🔍 顶部没有发现尖角...',
+                color: '#28a745',
+                markType: 'triangle'
+            },
+            { 
+                region: 'center', 
+                x: 140, y: 140, 
+                found: features.hasRoundShape,
+                foundText: '✨ 发现圆圆的形状！可能是脸或花瓣！',
+                notFoundText: '🔍 中间没有发现圆形...',
+                color: '#667eea',
+                markType: 'circle'
+            },
+            { 
+                region: 'bottom', 
+                x: 140, y: 220, 
+                found: features.hasStem,
+                foundText: '✨ 发现直直的线条！这可能是花茎！',
+                notFoundText: '🔍 底部没有发现竖线...',
+                color: '#17a2b8',
+                markType: 'line'
+            }
         ];
 
-        for (let config of kernelConfigs) {
-            const gridDiv = document.createElement('div');
-            gridDiv.className = 'grid-display detective-scan';
-            gridDiv.innerHTML = `
-                <div class="grid-title">${config.icon} ${config.label}</div>
-                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center;">
-                    <div>
-                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">🔍 扫描中</div>
-                        <canvas id="input_${config.name}"></canvas>
-                    </div>
-                    <div class="arrow">→</div>
-                    <div>
-                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">✨ 发现的线索</div>
-                        <canvas id="output_${config.name}"></canvas>
-                    </div>
-                </div>
-            `;
-            vizContainer.appendChild(gridDiv);
+        magnifier.style.opacity = '1';
 
-            await this.delay(100);
-
-            // 执行动画卷积（不显示卷积核细节）
-            const inputCanvas = document.getElementById(`input_${config.name}`);
-            const outputCanvas = document.getElementById(`output_${config.name}`);
-            const result = await Visualizer.animateConvolution(
-                inputCanvas,
-                outputCanvas,
-                matrix,
-                this.kernels[config.name],
-                8,
-                20  // 速度：20ms 每步
-            );
-
-            results[config.name] = result;
+        for (let scan of scanSequence) {
+            // 移动放大镜
+            magnifier.style.left = (scan.x - 30) + 'px';
+            magnifier.style.top = (scan.y - 30) + 'px';
+            magnifier.style.borderColor = scan.found ? scan.color : '#999';
+            
+            await this.delay(600);
+            
+            // 显示气泡
+            bubble.textContent = scan.found ? scan.foundText : scan.notFoundText;
+            bubble.style.background = scan.found ? scan.color : '#666';
+            bubble.style.left = (scan.x + 40) + 'px';
+            bubble.style.top = (scan.y - 20) + 'px';
+            bubble.style.opacity = '1';
+            
+            // 如果发现了特征，在图上标记
+            if (scan.found) {
+                ctx.strokeStyle = scan.color;
+                ctx.lineWidth = 3;
+                ctx.setLineDash([8, 4]);
+                
+                if (scan.markType === 'triangle') {
+                    // 标记顶部区域（耳朵）
+                    ctx.beginPath();
+                    ctx.moveTo(70, 80);
+                    ctx.lineTo(140, 20);
+                    ctx.lineTo(210, 80);
+                    ctx.stroke();
+                } else if (scan.markType === 'circle') {
+                    // 标记中间区域（圆形）
+                    ctx.beginPath();
+                    ctx.arc(140, 130, 60, 0, Math.PI * 2);
+                    ctx.stroke();
+                } else if (scan.markType === 'line') {
+                    // 标记底部区域（花茎）
+                    ctx.beginPath();
+                    ctx.moveTo(140, 180);
+                    ctx.lineTo(140, 260);
+                    ctx.stroke();
+                }
+                ctx.setLineDash([]);
+            }
+            
+            await this.delay(1200);
+            bubble.style.opacity = '0';
         }
 
-        return results;
+        magnifier.style.opacity = '0';
+        
+        // 保存特征分析结果和池化结果
+        this.lastAnalyzedFeatures = features;
+        return poolResults;
+    }
+    
+    // 简单特征分析（基于池化结果）
+    analyzeFeatures(poolResults) {
+        const edge = poolResults['edge'];
+        const vert = poolResults['vertical'];
+        const size = edge.length; // 13x13
+        
+        // 检测顶部尖角（猫耳朵）
+        let topScore = 0;
+        for (let y = 0; y < Math.floor(size * 0.35); y++) {
+            for (let x = 0; x < size; x++) {
+                topScore += edge[y][x];
+            }
+        }
+        const hasEars = topScore > 8;
+        
+        // 检测中间圆形（脸/花瓣）
+        let centerScore = 0;
+        const mid = Math.floor(size / 2);
+        for (let y = mid - 3; y < mid + 3; y++) {
+            for (let x = mid - 3; x < mid + 3; x++) {
+                if (y >= 0 && y < size && x >= 0 && x < size) {
+                    centerScore += edge[y][x];
+                }
+            }
+        }
+        const hasRoundShape = centerScore > 5;
+        
+        // 检测底部竖线（花茎）
+        let stemScore = 0;
+        for (let y = Math.floor(size * 0.6); y < size; y++) {
+            for (let x = mid - 2; x <= mid + 2; x++) {
+                if (x >= 0 && x < size) {
+                    stemScore += vert[y][x];
+                }
+            }
+        }
+        const hasStem = stemScore > 3;
+        
+        return { hasEars, hasRoundShape, hasStem, topScore, centerScore, stemScore };
     }
 
-    async showStep3(convResults) {
+    async showStep3(poolResults) {
+        // 使用之前分析的特征
+        const features = this.lastAnalyzedFeatures || { hasEars: false, hasRoundShape: false, hasStem: false };
+        
         const step = document.createElement('div');
         step.className = 'step';
         step.innerHTML = `
-            <h3>🎒 步骤 3：整理收集到的线索</h3>
+            <h3>🎒 步骤 3：AI小侦探收集到的线索</h3>
             <div class="step-description">
                 <div class="detective-avatar">🤖</div>
-                AI小侦探把找到的线索整理成<strong>线索卡片</strong>！<br>
-                每张卡片记录了发现的重要特征。<br>
-                🌈 <strong>颜色说明：红色=很明显的特征，蓝色=不太明显</strong>
+                <strong>"让我整理一下找到的线索..."</strong>
             </div>
-            <div class="clue-collection" id="poolViz">
+            <div class="clue-collection" id="clueCards" style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 20px;">
             </div>
         `;
         this.stepsContainer.appendChild(step);
 
-        await this.delay(100);
+        await this.delay(300);
+        
+        const container = document.getElementById('clueCards');
+        
+        // 线索卡片定义
+        const clueCards = [
+            {
+                id: 'ears',
+                found: features.hasEars,
+                icon: '🔺',
+                title: '尖尖的耳朵',
+                desc: '小猫的重要特征！',
+                color: '#28a745'
+            },
+            {
+                id: 'round',
+                found: features.hasRoundShape,
+                icon: '⭕',
+                title: '圆圆的形状',
+                desc: '可能是脸或花瓣',
+                color: '#667eea'
+            },
+            {
+                id: 'stem',
+                found: features.hasStem,
+                icon: '📏',
+                title: '直直的线条',
+                desc: '花朵的重要特征！',
+                color: '#17a2b8'
+            }
+        ];
 
-        const results = {};
-        const vizContainer = document.getElementById('poolViz');
-
-        const featureNames = {
-            'edge': { icon: '◇', label: '形状特征', desc: '找到的轮廓' },
-            'vertical': { icon: '┃', label: '竖线特征', desc: '找到的竖线' },
-            'horizontal': { icon: '━', label: '横线特征', desc: '找到的横线' }
-        };
-
-        for (let [name, matrix] of Object.entries(convResults)) {
-            const featureInfo = featureNames[name];
-            const gridDiv = document.createElement('div');
-            gridDiv.className = 'grid-display clue-card-display';
-            gridDiv.innerHTML = `
-                <div class="grid-title">${featureInfo.icon} ${featureInfo.label}</div>
-                <div style="text-align: center;">
-                    <div style="font-size: 12px; color: #666; margin-bottom: 5px;">✨ ${featureInfo.desc}</div>
-                    <canvas id="poolOutput_${name}" style="border: 3px solid #667eea; border-radius: 8px;"></canvas>
-                </div>
+        for (let card of clueCards) {
+            const cardEl = document.createElement('div');
+            cardEl.style.cssText = `
+                width: 140px;
+                padding: 20px;
+                border-radius: 15px;
+                text-align: center;
+                transition: all 0.5s ease;
+                opacity: 0;
+                transform: translateY(30px) scale(0.8);
             `;
-            vizContainer.appendChild(gridDiv);
-
+            
+            if (card.found) {
+                cardEl.style.background = 'white';
+                cardEl.style.border = `4px solid ${card.color}`;
+                cardEl.style.boxShadow = `0 8px 25px ${card.color}40`;
+                cardEl.innerHTML = `
+                    <div style="font-size: 3.5em; margin-bottom: 10px;">${card.icon}</div>
+                    <div style="font-weight: bold; color: #333; font-size: 1.1em;">${card.title}</div>
+                    <div style="font-size: 0.85em; color: ${card.color}; margin-top: 8px;">✅ 找到了！</div>
+                    <div style="font-size: 0.75em; color: #666; margin-top: 5px;">${card.desc}</div>
+                `;
+            } else {
+                cardEl.style.background = '#f5f5f5';
+                cardEl.style.border = '3px dashed #ccc';
+                cardEl.innerHTML = `
+                    <div style="font-size: 3.5em; margin-bottom: 10px; filter: grayscale(100%); opacity: 0.3;">${card.icon}</div>
+                    <div style="font-weight: bold; color: #999; font-size: 1.1em;">${card.title}</div>
+                    <div style="font-size: 0.85em; color: #999; margin-top: 8px;">❌ 没找到</div>
+                `;
+            }
+            
+            container.appendChild(cardEl);
+            
+            // 动画显示
             await this.delay(100);
-
-            // 执行池化（只显示输出热力图）
-            const outputCanvas = document.getElementById(`poolOutput_${name}`);
-            const pooled = await Visualizer.animatePooling(
-                document.createElement('canvas'),  // 不显示输入
-                outputCanvas,
-                matrix,
-                2,  // 池化大小
-                6,  // 输入单元格较小
-                12, // 输出单元格较大
-                30,  // 速度
-                true // 输出使用热力图
-            );
-
-            results[name] = pooled;
+            cardEl.style.opacity = '1';
+            cardEl.style.transform = 'translateY(0) scale(1)';
+            await this.delay(400);
         }
 
-        return results;
+        // 总结
+        const foundCount = clueCards.filter(c => c.found).length;
+        const summaryEl = document.createElement('div');
+        summaryEl.style.cssText = `
+            width: 100%;
+            margin-top: 20px;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea20, #764ba220);
+            border-radius: 10px;
+            text-align: center;
+            font-size: 1.1em;
+            opacity: 0;
+            transition: opacity 0.5s;
+        `;
+        summaryEl.innerHTML = `
+            <strong>🤖 AI小侦探说：</strong> "我一共找到了 <strong style="color: #667eea; font-size: 1.3em;">${foundCount}</strong> 条线索！"
+        `;
+        container.appendChild(summaryEl);
+        
+        await this.delay(300);
+        summaryEl.style.opacity = '1';
+
+        return poolResults;
     }
 
     async showStep4(originalMatrix, poolResults) {
-        const step = document.createElement('div');
-        step.className = 'step';
-
+        const features = this.lastAnalyzedFeatures || { hasEars: false, hasRoundShape: false, hasStem: false };
+        
         // 检查是否使用训练模式
         const trainingSamples = this.trainingManager.getSamples();
         const useTraining = trainingSamples.length >= 2;
 
+        const step = document.createElement('div');
+        step.className = 'step';
         step.innerHTML = `
-            <h3>📋 步骤 4：查阅档案库</h3>
+            <h3>📋 步骤 4：对比档案，找出答案！</h3>
             <div class="step-description">
                 <div class="detective-avatar">🤖</div>
-                ${useTraining ?
-                    'AI小侦探打开档案库，寻找最匹配的训练样本！<br>它会对比收集到的线索，找出最相似的档案。' :
-                    'AI小侦探翻开档案本，里面记录了两种物体的特征：<br>' +
-                    '<div class="archive-cards">' +
-                    '<div class="archive-card cat-card">' +
-                    '<div class="archive-icon">🐱</div>' +
-                    '<div class="archive-title">小猫档案</div>' +
-                    '<div class="archive-features">✓ 顶部有尖耳朵<br>✓ 中间有圆脸<br>✓ 没有直立的茎</div>' +
-                    '</div>' +
-                    '<div class="archive-card flower-card">' +
-                    '<div class="archive-icon">🌸</div>' +
-                    '<div class="archive-title">花朵档案</div>' +
-                    '<div class="archive-features">✓ 周围有花瓣<br>✓ 中间有花蕊<br>✓ 下方有花茎</div>' +
-                    '</div>' +
-                    '</div>'
-                }
+                <strong>"让我对比一下档案库..."</strong>
             </div>
+            <div id="archiveComparison" style="margin-top: 20px;"></div>
             ${useTraining ? '<div id="matchingAnimation" class="matching-animation"></div>' : ''}
         `;
         this.stepsContainer.appendChild(step);
 
+        await this.delay(300);
+        
+        const comparisonContainer = document.getElementById('archiveComparison');
+        
+        if (!useTraining) {
+            // 显示档案对比（非训练模式）
+            const catMatch = (features.hasEars ? 1 : 0) + (features.hasRoundShape ? 1 : 0) + (!features.hasStem ? 1 : 0);
+            const flowerMatch = (features.hasStem ? 1 : 0) + (features.hasRoundShape ? 1 : 0) + (!features.hasEars ? 0.5 : 0);
+            
+            comparisonContainer.innerHTML = `
+                <div style="display: flex; justify-content: center; gap: 30px; flex-wrap: wrap;">
+                    <!-- 小猫档案 -->
+                    <div class="archive-card cat-card" style="width: 200px; padding: 20px; opacity: 0; transform: translateX(-30px); transition: all 0.5s;" id="catArchive">
+                        <div class="archive-icon" style="font-size: 4em;">🐱</div>
+                        <div class="archive-title" style="font-size: 1.3em; margin: 10px 0;">小猫档案</div>
+                        <div style="text-align: left; margin-top: 15px;">
+                            <div style="padding: 8px; margin: 5px 0; border-radius: 8px; background: ${features.hasEars ? '#d4edda' : '#f8f9fa'};">
+                                ${features.hasEars ? '✅' : '❌'} 尖尖的耳朵
+                            </div>
+                            <div style="padding: 8px; margin: 5px 0; border-radius: 8px; background: ${features.hasRoundShape ? '#d4edda' : '#f8f9fa'};">
+                                ${features.hasRoundShape ? '✅' : '❌'} 圆圆的脸
+                            </div>
+                            <div style="padding: 8px; margin: 5px 0; border-radius: 8px; background: ${!features.hasStem ? '#d4edda' : '#f8f9fa'};">
+                                ${!features.hasStem ? '✅' : '❌'} 没有花茎
+                            </div>
+                        </div>
+                        <div style="margin-top: 15px; padding: 10px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 10px; font-weight: bold;">
+                            匹配度: ${Math.round(catMatch / 3 * 100)}%
+                        </div>
+                    </div>
+                    
+                    <!-- VS -->
+                    <div style="display: flex; align-items: center; font-size: 2em; color: #999;" id="vsText">VS</div>
+                    
+                    <!-- 花朵档案 -->
+                    <div class="archive-card flower-card" style="width: 200px; padding: 20px; opacity: 0; transform: translateX(30px); transition: all 0.5s;" id="flowerArchive">
+                        <div class="archive-icon" style="font-size: 4em;">🌸</div>
+                        <div class="archive-title" style="font-size: 1.3em; margin: 10px 0;">花朵档案</div>
+                        <div style="text-align: left; margin-top: 15px;">
+                            <div style="padding: 8px; margin: 5px 0; border-radius: 8px; background: ${features.hasRoundShape ? '#d4edda' : '#f8f9fa'};">
+                                ${features.hasRoundShape ? '✅' : '❌'} 圆形花瓣
+                            </div>
+                            <div style="padding: 8px; margin: 5px 0; border-radius: 8px; background: ${features.hasStem ? '#d4edda' : '#f8f9fa'};">
+                                ${features.hasStem ? '✅' : '❌'} 直直的花茎
+                            </div>
+                            <div style="padding: 8px; margin: 5px 0; border-radius: 8px; background: ${!features.hasEars ? '#d4edda' : '#f8f9fa'};">
+                                ${!features.hasEars ? '✅' : '❌'} 没有耳朵
+                            </div>
+                        </div>
+                        <div style="margin-top: 15px; padding: 10px; background: linear-gradient(135deg, #ff69b4, #ff1493); color: white; border-radius: 10px; font-weight: bold;">
+                            匹配度: ${Math.round(flowerMatch / 2.5 * 100)}%
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // 动画显示
+            await this.delay(100);
+            document.getElementById('catArchive').style.opacity = '1';
+            document.getElementById('catArchive').style.transform = 'translateX(0)';
+            await this.delay(300);
+            document.getElementById('flowerArchive').style.opacity = '1';
+            document.getElementById('flowerArchive').style.transform = 'translateX(0)';
+        }
+
         await this.delay(500);
 
-        // 如果使用训练模式，显示匹配动画
+        // 如果使用训练模式，显示简化的匹配动画
         if (useTraining) {
-            await this.showMatchingAnimation(poolResults);
+            await this.showSimpleMatchingAnimation(poolResults);
         }
 
         // 分类逻辑
@@ -1739,7 +1970,125 @@ class CNNProcessor {
         this.resultContent.innerHTML = resultHTML;
     }
 
-    // 显示匹配动画
+    // 简化的匹配动画（适合小朋友看）
+    async showSimpleMatchingAnimation(poolResults) {
+        const container = document.getElementById('matchingAnimation');
+        if (!container) return;
+
+        const samples = this.trainingManager.getSamples();
+        const currentFeatures = KNNClassifier.extractRegionalFeatures(poolResults);
+        const maxDist = KNNClassifier.maxWeightedDistance();
+
+        container.innerHTML = `
+            <div style="padding: 20px; background: white; border-radius: 15px; margin-top: 15px; border: 3px solid #667eea; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <div class="detective-avatar" style="font-size: 2em;">🤖</div>
+                    <div style="font-size: 1.1em; color: #333; font-weight: 600;">
+                        "让我在档案库里找找最像的..."
+                    </div>
+                </div>
+                
+                <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin: 20px 0;">
+                    <div style="text-align: center;">
+                        <canvas id="currentImg" width="100" height="100" style="border: 3px solid #667eea; border-radius: 10px;"></canvas>
+                        <div style="margin-top: 5px; font-size: 14px; color: #666;">你的画</div>
+                    </div>
+                    <div style="font-size: 2em; color: #667eea;">🔍</div>
+                    <div id="samplesList" style="display: flex; gap: 10px; flex-wrap: wrap; max-width: 300px;"></div>
+                </div>
+                
+                <div id="matchResult" style="text-align: center; margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 10px; opacity: 0; transition: opacity 0.5s;"></div>
+            </div>
+        `;
+
+        // 绘制当前图像
+        const currentCanvas = document.getElementById('currentImg');
+        const currentCtx = currentCanvas.getContext('2d');
+        const rawImageData = this.drawingBoard.getImageData();
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = rawImageData.width;
+        tempCanvas.height = rawImageData.height;
+        tempCanvas.getContext('2d').putImageData(rawImageData, 0, 0);
+        currentCtx.fillStyle = 'white';
+        currentCtx.fillRect(0, 0, 100, 100);
+        currentCtx.drawImage(tempCanvas, 0, 0, 100, 100);
+
+        const samplesList = document.getElementById('samplesList');
+        let bestMatch = null;
+        let bestSimilarity = 0;
+
+        // 逐个显示样本并计算相似度
+        for (let i = 0; i < samples.length; i++) {
+            const sample = samples[i];
+            const distance = KNNClassifier.weightedDistance(currentFeatures, sample.features);
+            const similarity = KNNClassifier.distanceToSimilarity(distance, maxDist);
+
+            const sampleDiv = document.createElement('div');
+            sampleDiv.style.cssText = `text-align: center; opacity: 0; transform: scale(0.8); transition: all 0.3s;`;
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = 60;
+            canvas.height = 60;
+            canvas.style.cssText = `border: 3px solid ${similarity > 70 ? '#28a745' : '#ddd'}; border-radius: 8px;`;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, 60, 60);
+            
+            if (sample.imageData && typeof sample.imageData === 'object') {
+                const temp = document.createElement('canvas');
+                temp.width = sample.imageData.width;
+                temp.height = sample.imageData.height;
+                temp.getContext('2d').putImageData(sample.imageData, 0, 0);
+                ctx.drawImage(temp, 0, 0, 60, 60);
+            } else if (sample.imageDataURL) {
+                const img = new Image();
+                img.src = sample.imageDataURL;
+                ctx.drawImage(img, 0, 0, 60, 60);
+            }
+            
+            const label = document.createElement('div');
+            label.style.cssText = `font-size: 12px; margin-top: 3px; color: ${similarity > 70 ? '#28a745' : '#666'};`;
+            label.textContent = `${sample.label === 'cat' ? '🐱' : '🌸'} ${similarity.toFixed(0)}%`;
+            
+            sampleDiv.appendChild(canvas);
+            sampleDiv.appendChild(label);
+            samplesList.appendChild(sampleDiv);
+            
+            // 动画显示
+            await this.delay(100);
+            sampleDiv.style.opacity = '1';
+            sampleDiv.style.transform = 'scale(1)';
+            
+            if (similarity > bestSimilarity) {
+                bestSimilarity = similarity;
+                bestMatch = { sample, similarity, index: i };
+            }
+            
+            await this.delay(200);
+        }
+
+        // 显示结果
+        const resultDiv = document.getElementById('matchResult');
+        if (bestMatch) {
+            const emoji = bestMatch.sample.label === 'cat' ? '🐱' : '🌸';
+            const name = bestMatch.sample.label === 'cat' ? '小猫' : '花朵';
+            resultDiv.innerHTML = `
+                <div style="font-size: 1.2em; color: #28a745; font-weight: bold;">
+                    ✅ 找到最像的档案！
+                </div>
+                <div style="font-size: 2em; margin: 10px 0;">${emoji}</div>
+                <div style="font-size: 1.1em;">
+                    和 <strong>${name}</strong> 的相似度最高：<strong style="color: #667eea;">${bestSimilarity.toFixed(0)}%</strong>
+                </div>
+            `;
+        }
+        resultDiv.style.opacity = '1';
+        
+        await this.delay(500);
+    }
+
+    // 显示匹配动画（完整版，保留但不使用）
     async showMatchingAnimation(poolResults) {
         const container = document.getElementById('matchingAnimation');
         if (!container) return;
