@@ -1607,32 +1607,55 @@ class CNNProcessor {
         const magnifier = document.getElementById('magnifier');
         const bubble = document.getElementById('speechBubble');
         
-        // 扫描动画序列
+        // 扫描动画序列 - 更详细的特征检测
         const scanSequence = [
+            // 左耳检测
             { 
-                region: 'top', 
-                x: 140, y: 50, 
-                found: features.hasEars,
-                foundText: '✨ 发现尖尖的三角形！这可能是耳朵！',
-                notFoundText: '🔍 顶部没有发现尖角...',
+                region: 'leftEar', 
+                x: 80, y: 50, 
+                found: features.hasLeftEar,
+                foundText: '✨ 发现左边的尖角！像猫耳朵！',
+                notFoundText: '🔍 左上没有发现尖角...',
                 color: '#28a745',
-                markType: 'triangle'
+                markType: 'leftTriangle'
             },
+            // 右耳检测
+            { 
+                region: 'rightEar', 
+                x: 200, y: 50, 
+                found: features.hasRightEar,
+                foundText: '✨ 发现右边的尖角！又一只耳朵！',
+                notFoundText: '🔍 右上没有发现尖角...',
+                color: '#28a745',
+                markType: 'rightTriangle'
+            },
+            // 花瓣检测（周围）
+            { 
+                region: 'petals', 
+                x: 140, y: 100, 
+                found: features.hasPetals,
+                foundText: `✨ 发现 ${features.petalCount} 片花瓣围成一圈！`,
+                notFoundText: '🔍 没有发现花瓣分布...',
+                color: '#e83e8c',
+                markType: 'petals'
+            },
+            // 中心检测
             { 
                 region: 'center', 
                 x: 140, y: 140, 
                 found: features.hasRoundShape,
-                foundText: '✨ 发现圆圆的形状！可能是脸或花瓣！',
+                foundText: features.hasEars ? '✨ 发现圆圆的脸蛋！' : '✨ 发现圆形的花蕊！',
                 notFoundText: '🔍 中间没有发现圆形...',
                 color: '#667eea',
                 markType: 'circle'
             },
+            // 花茎检测
             { 
-                region: 'bottom', 
+                region: 'stem', 
                 x: 140, y: 220, 
                 found: features.hasStem,
-                foundText: '✨ 发现直直的线条！这可能是花茎！',
-                notFoundText: '🔍 底部没有发现竖线...',
+                foundText: '✨ 发现直直的花茎！',
+                notFoundText: '🔍 底部没有发现花茎...',
                 color: '#17a2b8',
                 markType: 'line'
             }
@@ -1646,13 +1669,13 @@ class CNNProcessor {
             magnifier.style.top = (scan.y - 30) + 'px';
             magnifier.style.borderColor = scan.found ? scan.color : '#999';
             
-            await this.delay(600);
+            await this.delay(500);
             
             // 显示气泡
             bubble.textContent = scan.found ? scan.foundText : scan.notFoundText;
             bubble.style.background = scan.found ? scan.color : '#666';
-            bubble.style.left = (scan.x + 40) + 'px';
-            bubble.style.top = (scan.y - 20) + 'px';
+            bubble.style.left = scan.x < 140 ? (scan.x + 50) + 'px' : (scan.x - 180) + 'px';
+            bubble.style.top = (scan.y - 10) + 'px';
             bubble.style.opacity = '1';
             
             // 如果发现了特征，在图上标记
@@ -1661,20 +1684,40 @@ class CNNProcessor {
                 ctx.lineWidth = 3;
                 ctx.setLineDash([8, 4]);
                 
-                if (scan.markType === 'triangle') {
-                    // 标记顶部区域（耳朵）
+                if (scan.markType === 'leftTriangle') {
+                    // 左耳标记
                     ctx.beginPath();
-                    ctx.moveTo(70, 80);
-                    ctx.lineTo(140, 20);
-                    ctx.lineTo(210, 80);
+                    ctx.moveTo(50, 90);
+                    ctx.lineTo(90, 30);
+                    ctx.lineTo(130, 90);
+                    ctx.closePath();
                     ctx.stroke();
-                } else if (scan.markType === 'circle') {
-                    // 标记中间区域（圆形）
+                } else if (scan.markType === 'rightTriangle') {
+                    // 右耳标记
                     ctx.beginPath();
-                    ctx.arc(140, 130, 60, 0, Math.PI * 2);
+                    ctx.moveTo(150, 90);
+                    ctx.lineTo(190, 30);
+                    ctx.lineTo(230, 90);
+                    ctx.closePath();
+                    ctx.stroke();
+                } else if (scan.markType === 'petals') {
+                    // 花瓣标记 - 画多个小圆
+                    const petalAngles = [0, 72, 144, 216, 288]; // 5个方向
+                    for (let i = 0; i < features.petalCount && i < 5; i++) {
+                        const angle = petalAngles[i] * Math.PI / 180;
+                        const px = 140 + Math.cos(angle) * 70;
+                        const py = 120 + Math.sin(angle) * 70;
+                        ctx.beginPath();
+                        ctx.arc(px, py, 25, 0, Math.PI * 2);
+                        ctx.stroke();
+                    }
+                } else if (scan.markType === 'circle') {
+                    // 中心圆形标记
+                    ctx.beginPath();
+                    ctx.arc(140, 130, 50, 0, Math.PI * 2);
                     ctx.stroke();
                 } else if (scan.markType === 'line') {
-                    // 标记底部区域（花茎）
+                    // 花茎标记
                     ctx.beginPath();
                     ctx.moveTo(140, 180);
                     ctx.lineTo(140, 260);
@@ -1683,7 +1726,7 @@ class CNNProcessor {
                 ctx.setLineDash([]);
             }
             
-            await this.delay(1200);
+            await this.delay(1000);
             bubble.style.opacity = '0';
         }
 
@@ -1699,19 +1742,82 @@ class CNNProcessor {
         const edge = poolResults['edge'];
         const vert = poolResults['vertical'];
         const size = edge.length; // 13x13
+        const mid = Math.floor(size / 2);
         
-        // 检测顶部尖角（猫耳朵）
-        let topScore = 0;
-        for (let y = 0; y < Math.floor(size * 0.35); y++) {
-            for (let x = 0; x < size; x++) {
-                topScore += edge[y][x];
+        // ===== 猫耳朵检测（左右两个尖角）=====
+        // 左耳区域（左上）
+        let leftEarScore = 0;
+        for (let y = 0; y < Math.floor(size * 0.4); y++) {
+            for (let x = 0; x < mid - 1; x++) {
+                leftEarScore += edge[y][x];
             }
         }
-        const hasEars = topScore > 8;
+        const hasLeftEar = leftEarScore > 4;
         
-        // 检测中间圆形（脸/花瓣）
+        // 右耳区域（右上）
+        let rightEarScore = 0;
+        for (let y = 0; y < Math.floor(size * 0.4); y++) {
+            for (let x = mid + 1; x < size; x++) {
+                rightEarScore += edge[y][x];
+            }
+        }
+        const hasRightEar = rightEarScore > 4;
+        
+        // 两只耳朵都有才算有耳朵
+        const hasEars = hasLeftEar && hasRightEar;
+        const earCount = (hasLeftEar ? 1 : 0) + (hasRightEar ? 1 : 0);
+
+        // ===== 花瓣检测（多瓣“突起” vs 一整圈轮廓）=====
+        // 关键思路：花瓣通常是“多处突起”，而猫脸轮廓更像“均匀一圈”。
+        // 我们在一个环形区域里按角度分扇区，计算每个扇区的边缘强度：
+        // - 如果强度分布有明显“峰值”（差异大），更像花瓣
+        // - 如果分布很均匀（差异小），更像圆脸轮廓，不算花瓣
+
+        const sectorCount = 12; // 12个方向
+        const sectorSums = Array(sectorCount).fill(0);
+        const cx = (size - 1) / 2;
+        const cy = (size - 1) / 2;
+        const rMin = size * 0.28;
+        const rMax = size * 0.50;
+
+        for (let y = 0; y < size; y++) {
+            for (let x = 0; x < size; x++) {
+                const dx = x - cx;
+                const dy = y - cy;
+                const r = Math.sqrt(dx * dx + dy * dy);
+                if (r >= rMin && r <= rMax) {
+                    let a = Math.atan2(dy, dx); // [-pi, pi]
+                    if (a < 0) a += Math.PI * 2; // [0, 2pi)
+                    const idx = Math.min(sectorCount - 1, Math.floor((a / (Math.PI * 2)) * sectorCount));
+                    sectorSums[idx] += edge[y][x];
+                }
+            }
+        }
+
+        const sumAll = sectorSums.reduce((acc, v) => acc + v, 0);
+        const mean = sumAll / sectorCount;
+        const max = Math.max(...sectorSums);
+        const min = Math.min(...sectorSums);
+        const peakedness = max / (mean + 1e-9);
+        const contrast = (max - min) / (max + 1e-9);
+
+        // 判定“花瓣扇区”：强度明显高于平均值
+        // 如果已经检测到双耳（很像猫），我们提高阈值，避免猫脸被误判为花瓣
+        const factor = earCount === 2 ? 1.65 : 1.35;
+        const absFloor = earCount === 2 ? 1.0 : 0.6; // 绝对下限，避免噪声
+        const petalCount = sectorSums.filter(v => v > mean * factor && v > absFloor).length;
+
+        // 花瓣成立条件：
+        // - 至少4个方向有“突起”
+        // - 峰值明显（不是均匀一圈）
+        // - 对比度够大
+        const minPetals = earCount === 2 ? 6 : 4;
+        const minPeakedness = earCount === 2 ? 2.0 : 1.55;
+        const minContrast = earCount === 2 ? 0.55 : 0.40;
+        const hasPetals = petalCount >= minPetals && peakedness >= minPeakedness && contrast >= minContrast;
+        
+        // ===== 中心圆形检测（脸或花蕊）=====
         let centerScore = 0;
-        const mid = Math.floor(size / 2);
         for (let y = mid - 3; y < mid + 3; y++) {
             for (let x = mid - 3; x < mid + 3; x++) {
                 if (y >= 0 && y < size && x >= 0 && x < size) {
@@ -1721,7 +1827,7 @@ class CNNProcessor {
         }
         const hasRoundShape = centerScore > 5;
         
-        // 检测底部竖线（花茎）
+        // ===== 花茎检测（底部竖线）=====
         let stemScore = 0;
         for (let y = Math.floor(size * 0.6); y < size; y++) {
             for (let x = mid - 2; x <= mid + 2; x++) {
@@ -1732,12 +1838,22 @@ class CNNProcessor {
         }
         const hasStem = stemScore > 3;
         
-        return { hasEars, hasRoundShape, hasStem, topScore, centerScore, stemScore };
+        return { 
+            hasEars, hasLeftEar, hasRightEar, earCount,
+            hasPetals, petalCount,
+            hasRoundShape, hasStem, 
+            leftEarScore, rightEarScore, centerScore, stemScore,
+            petalDebug: { sectorSums, mean, max, min, peakedness, contrast }
+        };
     }
 
     async showStep3(poolResults) {
         // 使用之前分析的特征
-        const features = this.lastAnalyzedFeatures || { hasEars: false, hasRoundShape: false, hasStem: false };
+        const features = this.lastAnalyzedFeatures || { 
+            hasEars: false, earCount: 0, hasLeftEar: false, hasRightEar: false,
+            hasPetals: false, petalCount: 0,
+            hasRoundShape: false, hasStem: false 
+        };
         
         const step = document.createElement('div');
         step.className = 'step';
@@ -1747,7 +1863,7 @@ class CNNProcessor {
                 <div class="detective-avatar">🤖</div>
                 <strong>"让我整理一下找到的线索..."</strong>
             </div>
-            <div class="clue-collection" id="clueCards" style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 20px;">
+            <div class="clue-collection" id="clueCards" style="display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin-top: 20px;">
             </div>
         `;
         this.stepsContainer.appendChild(step);
@@ -1756,39 +1872,57 @@ class CNNProcessor {
         
         const container = document.getElementById('clueCards');
         
-        // 线索卡片定义
+        // 线索卡片定义 - 更详细的特征
         const clueCards = [
             {
                 id: 'ears',
-                found: features.hasEars,
-                icon: '🔺',
-                title: '尖尖的耳朵',
-                desc: '小猫的重要特征！',
-                color: '#28a745'
+                found: features.earCount > 0,
+                icon: '🔺🔺',
+                title: `猫耳朵 ×${features.earCount}`,
+                desc: features.earCount === 2 ? '两只耳朵！一定是小猫！' : 
+                      features.earCount === 1 ? '只找到一只耳朵...' : '没有发现耳朵',
+                color: '#28a745',
+                highlight: features.earCount === 2,
+                count: features.earCount
+            },
+            {
+                id: 'petals',
+                found: features.hasPetals,
+                icon: '🌸',
+                title: `花瓣 ×${features.petalCount}`,
+                desc: features.petalCount >= 4 ? '好多花瓣！一定是花朵！' :
+                      features.petalCount > 0 ? `找到${features.petalCount}片花瓣` : '没有发现花瓣',
+                color: '#e83e8c',
+                highlight: features.petalCount >= 4,
+                count: features.petalCount
             },
             {
                 id: 'round',
                 found: features.hasRoundShape,
                 icon: '⭕',
-                title: '圆圆的形状',
-                desc: '可能是脸或花瓣',
-                color: '#667eea'
+                title: '圆形',
+                desc: features.hasEars ? '猫咪的圆脸蛋' : '花朵的花蕊',
+                color: '#667eea',
+                highlight: false,
+                count: features.hasRoundShape ? 1 : 0
             },
             {
                 id: 'stem',
                 found: features.hasStem,
                 icon: '📏',
-                title: '直直的线条',
-                desc: '花朵的重要特征！',
-                color: '#17a2b8'
+                title: '花茎',
+                desc: '直直的茎！花朵特征！',
+                color: '#17a2b8',
+                highlight: features.hasStem,
+                count: features.hasStem ? 1 : 0
             }
         ];
 
         for (let card of clueCards) {
             const cardEl = document.createElement('div');
             cardEl.style.cssText = `
-                width: 140px;
-                padding: 20px;
+                width: 130px;
+                padding: 15px;
                 border-radius: 15px;
                 text-align: center;
                 transition: all 0.5s ease;
@@ -1797,22 +1931,38 @@ class CNNProcessor {
             `;
             
             if (card.found) {
-                cardEl.style.background = 'white';
-                cardEl.style.border = `4px solid ${card.color}`;
-                cardEl.style.boxShadow = `0 8px 25px ${card.color}40`;
-                cardEl.innerHTML = `
-                    <div style="font-size: 3.5em; margin-bottom: 10px;">${card.icon}</div>
-                    <div style="font-weight: bold; color: #333; font-size: 1.1em;">${card.title}</div>
-                    <div style="font-size: 0.85em; color: ${card.color}; margin-top: 8px;">✅ 找到了！</div>
-                    <div style="font-size: 0.75em; color: #666; margin-top: 5px;">${card.desc}</div>
-                `;
+                // 高亮的特征卡片（猫耳朵×2 或 花瓣≥4）
+                if (card.highlight) {
+                    cardEl.style.background = `linear-gradient(135deg, ${card.color}20, ${card.color}40)`;
+                    cardEl.style.border = `4px solid ${card.color}`;
+                    cardEl.style.boxShadow = `0 8px 30px ${card.color}50`;
+                    cardEl.style.transform = 'scale(1.05)';
+                    cardEl.innerHTML = `
+                        <div style="font-size: 2.5em; margin-bottom: 8px;">${card.icon}</div>
+                        <div style="font-weight: bold; color: ${card.color}; font-size: 1.2em;">${card.title}</div>
+                        <div style="font-size: 0.9em; color: white; background: ${card.color}; padding: 5px 10px; border-radius: 15px; margin-top: 8px;">
+                            ⭐ 关键特征！
+                        </div>
+                        <div style="font-size: 0.75em; color: #333; margin-top: 8px;">${card.desc}</div>
+                    `;
+                } else {
+                    cardEl.style.background = 'white';
+                    cardEl.style.border = `3px solid ${card.color}`;
+                    cardEl.style.boxShadow = `0 4px 15px ${card.color}30`;
+                    cardEl.innerHTML = `
+                        <div style="font-size: 2.5em; margin-bottom: 8px;">${card.icon}</div>
+                        <div style="font-weight: bold; color: #333; font-size: 1em;">${card.title}</div>
+                        <div style="font-size: 0.8em; color: ${card.color}; margin-top: 8px;">✅ 找到了</div>
+                        <div style="font-size: 0.7em; color: #666; margin-top: 5px;">${card.desc}</div>
+                    `;
+                }
             } else {
-                cardEl.style.background = '#f5f5f5';
-                cardEl.style.border = '3px dashed #ccc';
+                cardEl.style.background = '#f8f8f8';
+                cardEl.style.border = '2px dashed #ddd';
                 cardEl.innerHTML = `
-                    <div style="font-size: 3.5em; margin-bottom: 10px; filter: grayscale(100%); opacity: 0.3;">${card.icon}</div>
-                    <div style="font-weight: bold; color: #999; font-size: 1.1em;">${card.title}</div>
-                    <div style="font-size: 0.85em; color: #999; margin-top: 8px;">❌ 没找到</div>
+                    <div style="font-size: 2.5em; margin-bottom: 8px; filter: grayscale(100%); opacity: 0.3;">${card.icon}</div>
+                    <div style="font-weight: bold; color: #bbb; font-size: 1em;">${card.title}</div>
+                    <div style="font-size: 0.8em; color: #bbb; margin-top: 8px;">❌ 没找到</div>
                 `;
             }
             
@@ -1821,26 +1971,48 @@ class CNNProcessor {
             // 动画显示
             await this.delay(100);
             cardEl.style.opacity = '1';
-            cardEl.style.transform = 'translateY(0) scale(1)';
-            await this.delay(400);
+            if (!card.highlight) {
+                cardEl.style.transform = 'translateY(0) scale(1)';
+            }
+            await this.delay(300);
         }
 
-        // 总结
-        const foundCount = clueCards.filter(c => c.found).length;
+        // 总结 - 突出关键发现
+        const hasKeyEarFeature = features.earCount === 2;
+        const hasKeyPetalFeature = features.petalCount >= 4;
+        
+        let summaryText = '';
+        let summaryColor = '#667eea';
+        
+        if (hasKeyEarFeature && !hasKeyPetalFeature) {
+            summaryText = `我发现了 <strong style="color: #28a745;">2只尖尖的耳朵</strong>！这是小猫的关键特征！`;
+            summaryColor = '#28a745';
+        } else if (hasKeyPetalFeature && !hasKeyEarFeature) {
+            summaryText = `我发现了 <strong style="color: #e83e8c;">${features.petalCount}片花瓣</strong>！这是花朵的关键特征！`;
+            summaryColor = '#e83e8c';
+        } else if (hasKeyEarFeature && hasKeyPetalFeature) {
+            summaryText = `找到了耳朵也找到了花瓣...让我仔细想想！`;
+        } else {
+            const foundCount = clueCards.filter(c => c.found).length;
+            summaryText = `我找到了 ${foundCount} 条线索，让我对比一下档案！`;
+        }
+        
         const summaryEl = document.createElement('div');
         summaryEl.style.cssText = `
             width: 100%;
             margin-top: 20px;
-            padding: 15px;
-            background: linear-gradient(135deg, #667eea20, #764ba220);
-            border-radius: 10px;
+            padding: 18px;
+            background: linear-gradient(135deg, ${summaryColor}15, ${summaryColor}25);
+            border: 2px solid ${summaryColor}50;
+            border-radius: 15px;
             text-align: center;
-            font-size: 1.1em;
+            font-size: 1.15em;
             opacity: 0;
             transition: opacity 0.5s;
         `;
         summaryEl.innerHTML = `
-            <strong>🤖 AI小侦探说：</strong> "我一共找到了 <strong style="color: #667eea; font-size: 1.3em;">${foundCount}</strong> 条线索！"
+            <div class="detective-avatar" style="font-size: 1.5em; margin-bottom: 8px;">🤖</div>
+            <div>${summaryText}</div>
         `;
         container.appendChild(summaryEl);
         
@@ -1875,29 +2047,37 @@ class CNNProcessor {
         const comparisonContainer = document.getElementById('archiveComparison');
         
         if (!useTraining) {
-            // 显示档案对比（非训练模式）
-            const catMatch = (features.hasEars ? 1 : 0) + (features.hasRoundShape ? 1 : 0) + (!features.hasStem ? 1 : 0);
-            const flowerMatch = (features.hasStem ? 1 : 0) + (features.hasRoundShape ? 1 : 0) + (!features.hasEars ? 0.5 : 0);
+            // 显示档案对比（非训练模式）- 突出关键特征
+            const earScore = features.earCount === 2 ? 3 : features.earCount === 1 ? 1 : 0;  // 两只耳朵得3分
+            const petalScore = features.petalCount >= 4 ? 3 : features.petalCount >= 2 ? 1 : 0;  // 多花瓣得3分
+            
+            const catMatch = earScore + (features.hasRoundShape ? 1 : 0) + (!features.hasStem ? 1 : 0);
+            const flowerMatch = petalScore + (features.hasStem ? 2 : 0) + (features.hasRoundShape ? 0.5 : 0);
+            
+            const catPercent = Math.min(100, Math.round(catMatch / 5 * 100));
+            const flowerPercent = Math.min(100, Math.round(flowerMatch / 5.5 * 100));
             
             comparisonContainer.innerHTML = `
-                <div style="display: flex; justify-content: center; gap: 30px; flex-wrap: wrap;">
+                <div style="display: flex; justify-content: center; gap: 25px; flex-wrap: wrap;">
                     <!-- 小猫档案 -->
-                    <div class="archive-card cat-card" style="width: 200px; padding: 20px; opacity: 0; transform: translateX(-30px); transition: all 0.5s;" id="catArchive">
-                        <div class="archive-icon" style="font-size: 4em;">🐱</div>
-                        <div class="archive-title" style="font-size: 1.3em; margin: 10px 0;">小猫档案</div>
-                        <div style="text-align: left; margin-top: 15px;">
-                            <div style="padding: 8px; margin: 5px 0; border-radius: 8px; background: ${features.hasEars ? '#d4edda' : '#f8f9fa'};">
-                                ${features.hasEars ? '✅' : '❌'} 尖尖的耳朵
+                    <div class="archive-card cat-card" style="width: 220px; padding: 20px; opacity: 0; transform: translateX(-30px); transition: all 0.5s; ${catPercent > flowerPercent ? 'box-shadow: 0 0 30px #28a74550;' : ''}" id="catArchive">
+                        <div class="archive-icon" style="font-size: 3.5em;">🐱</div>
+                        <div class="archive-title" style="font-size: 1.2em; margin: 10px 0;">小猫档案</div>
+                        <div style="text-align: left; margin-top: 12px; font-size: 0.95em;">
+                            <div style="padding: 10px; margin: 6px 0; border-radius: 10px; background: ${features.earCount === 2 ? 'linear-gradient(135deg, #d4edda, #c3e6cb)' : features.earCount === 1 ? '#fff3cd' : '#f8f9fa'}; ${features.earCount === 2 ? 'border: 2px solid #28a745;' : ''}">
+                                ${features.earCount === 2 ? '⭐' : features.earCount === 1 ? '🔸' : '❌'} 
+                                <strong>尖耳朵 ×${features.earCount}</strong>
+                                ${features.earCount === 2 ? '<span style="color: #28a745; font-size: 0.85em;"> (关键!)</span>' : ''}
                             </div>
-                            <div style="padding: 8px; margin: 5px 0; border-radius: 8px; background: ${features.hasRoundShape ? '#d4edda' : '#f8f9fa'};">
+                            <div style="padding: 10px; margin: 6px 0; border-radius: 10px; background: ${features.hasRoundShape ? '#d4edda' : '#f8f9fa'};">
                                 ${features.hasRoundShape ? '✅' : '❌'} 圆圆的脸
                             </div>
-                            <div style="padding: 8px; margin: 5px 0; border-radius: 8px; background: ${!features.hasStem ? '#d4edda' : '#f8f9fa'};">
+                            <div style="padding: 10px; margin: 6px 0; border-radius: 10px; background: ${!features.hasStem ? '#d4edda' : '#f8f9fa'};">
                                 ${!features.hasStem ? '✅' : '❌'} 没有花茎
                             </div>
                         </div>
-                        <div style="margin-top: 15px; padding: 10px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 10px; font-weight: bold;">
-                            匹配度: ${Math.round(catMatch / 3 * 100)}%
+                        <div style="margin-top: 15px; padding: 12px; background: ${catPercent > flowerPercent ? 'linear-gradient(135deg, #28a745, #20c997)' : 'linear-gradient(135deg, #667eea, #764ba2)'}; color: white; border-radius: 12px; font-weight: bold; font-size: 1.1em;">
+                            匹配度: ${catPercent}%
                         </div>
                     </div>
                     
@@ -1905,22 +2085,25 @@ class CNNProcessor {
                     <div style="display: flex; align-items: center; font-size: 2em; color: #999;" id="vsText">VS</div>
                     
                     <!-- 花朵档案 -->
-                    <div class="archive-card flower-card" style="width: 200px; padding: 20px; opacity: 0; transform: translateX(30px); transition: all 0.5s;" id="flowerArchive">
-                        <div class="archive-icon" style="font-size: 4em;">🌸</div>
-                        <div class="archive-title" style="font-size: 1.3em; margin: 10px 0;">花朵档案</div>
-                        <div style="text-align: left; margin-top: 15px;">
-                            <div style="padding: 8px; margin: 5px 0; border-radius: 8px; background: ${features.hasRoundShape ? '#d4edda' : '#f8f9fa'};">
-                                ${features.hasRoundShape ? '✅' : '❌'} 圆形花瓣
+                    <div class="archive-card flower-card" style="width: 220px; padding: 20px; opacity: 0; transform: translateX(30px); transition: all 0.5s; ${flowerPercent > catPercent ? 'box-shadow: 0 0 30px #e83e8c50;' : ''}" id="flowerArchive">
+                        <div class="archive-icon" style="font-size: 3.5em;">🌸</div>
+                        <div class="archive-title" style="font-size: 1.2em; margin: 10px 0;">花朵档案</div>
+                        <div style="text-align: left; margin-top: 12px; font-size: 0.95em;">
+                            <div style="padding: 10px; margin: 6px 0; border-radius: 10px; background: ${features.petalCount >= 4 ? 'linear-gradient(135deg, #f8d7da, #f5c6cb)' : features.petalCount > 0 ? '#fff3cd' : '#f8f9fa'}; ${features.petalCount >= 4 ? 'border: 2px solid #e83e8c;' : ''}">
+                                ${features.petalCount >= 4 ? '⭐' : features.petalCount > 0 ? '🔸' : '❌'} 
+                                <strong>花瓣 ×${features.petalCount}</strong>
+                                ${features.petalCount >= 4 ? '<span style="color: #e83e8c; font-size: 0.85em;"> (关键!)</span>' : ''}
                             </div>
-                            <div style="padding: 8px; margin: 5px 0; border-radius: 8px; background: ${features.hasStem ? '#d4edda' : '#f8f9fa'};">
-                                ${features.hasStem ? '✅' : '❌'} 直直的花茎
+                            <div style="padding: 10px; margin: 6px 0; border-radius: 10px; background: ${features.hasStem ? '#d4edda' : '#f8f9fa'}; ${features.hasStem ? 'border: 2px solid #17a2b8;' : ''}">
+                                ${features.hasStem ? '⭐' : '❌'} <strong>直直的花茎</strong>
+                                ${features.hasStem ? '<span style="color: #17a2b8; font-size: 0.85em;"> (关键!)</span>' : ''}
                             </div>
-                            <div style="padding: 8px; margin: 5px 0; border-radius: 8px; background: ${!features.hasEars ? '#d4edda' : '#f8f9fa'};">
+                            <div style="padding: 10px; margin: 6px 0; border-radius: 10px; background: ${!features.hasEars ? '#d4edda' : '#f8f9fa'};">
                                 ${!features.hasEars ? '✅' : '❌'} 没有耳朵
                             </div>
                         </div>
-                        <div style="margin-top: 15px; padding: 10px; background: linear-gradient(135deg, #ff69b4, #ff1493); color: white; border-radius: 10px; font-weight: bold;">
-                            匹配度: ${Math.round(flowerMatch / 2.5 * 100)}%
+                        <div style="margin-top: 15px; padding: 12px; background: ${flowerPercent > catPercent ? 'linear-gradient(135deg, #e83e8c, #c71585)' : 'linear-gradient(135deg, #ff69b4, #ff1493)'}; color: white; border-radius: 12px; font-weight: bold; font-size: 1.1em;">
+                            匹配度: ${flowerPercent}%
                         </div>
                     </div>
                 </div>
