@@ -126,12 +126,12 @@ class TrainingDataManager {
 
     // 获取统计信息
     getStats() {
-        const smileCount = this.samples.filter(s => s.label === 'smile').length;
-        const sadCount = this.samples.filter(s => s.label === 'sad').length;
+        const catCount = this.samples.filter(s => s.label === 'cat').length;
+        const flowerCount = this.samples.filter(s => s.label === 'flower').length;
         return {
             total: this.samples.length,
-            smileCount,
-            sadCount
+            catCount,
+            flowerCount
         };
     }
 
@@ -562,7 +562,7 @@ class DrawingBoard {
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     }
 
-    generateSmile() {
+    generateCat() {
         this.clear();
         this.ctx.strokeStyle = 'black';
         this.ctx.lineWidth = 8;
@@ -570,86 +570,129 @@ class DrawingBoard {
         const centerX = this.canvas.width / 2;
         const centerY = this.canvas.height / 2;
 
-        // 画脸轮廓
+        // 画脸轮廓（圆形）
         this.ctx.beginPath();
-        this.ctx.arc(centerX, centerY, 100, 0, Math.PI * 2);
+        this.ctx.arc(centerX, centerY, 80, 0, Math.PI * 2);
+        this.ctx.stroke();
+
+        // 画左耳（三角形）
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX - 60, centerY - 50);
+        this.ctx.lineTo(centerX - 40, centerY - 100);
+        this.ctx.lineTo(centerX - 20, centerY - 50);
+        this.ctx.stroke();
+
+        // 画右耳（三角形）
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX + 20, centerY - 50);
+        this.ctx.lineTo(centerX + 40, centerY - 100);
+        this.ctx.lineTo(centerX + 60, centerY - 50);
         this.ctx.stroke();
 
         // 画左眼
         this.ctx.beginPath();
-        this.ctx.arc(centerX - 35, centerY - 30, 12, 0, Math.PI * 2);
+        this.ctx.arc(centerX - 30, centerY - 20, 10, 0, Math.PI * 2);
         this.ctx.fillStyle = 'black';
         this.ctx.fill();
 
         // 画右眼
         this.ctx.beginPath();
-        this.ctx.arc(centerX + 35, centerY - 30, 12, 0, Math.PI * 2);
+        this.ctx.arc(centerX + 30, centerY - 20, 10, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // 画微笑的嘴巴
+        // 画鼻子（小三角形）
         this.ctx.beginPath();
-        this.ctx.arc(centerX, centerY + 10, 60, 0.2 * Math.PI, 0.8 * Math.PI);
+        this.ctx.moveTo(centerX - 8, centerY + 10);
+        this.ctx.lineTo(centerX, centerY);
+        this.ctx.lineTo(centerX + 8, centerY + 10);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // 画嘴巴（两条弧线）
+        this.ctx.strokeStyle = 'black';
+        this.ctx.beginPath();
+        this.ctx.arc(centerX - 15, centerY + 20, 20, 0, 0.5 * Math.PI);
+        this.ctx.stroke();
+        this.ctx.beginPath();
+        this.ctx.arc(centerX + 15, centerY + 20, 20, 0.5 * Math.PI, Math.PI);
+        this.ctx.stroke();
+
+        // 画胡须（左侧）
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX - 80, centerY);
+        this.ctx.lineTo(centerX - 40, centerY - 5);
+        this.ctx.stroke();
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX - 80, centerY + 10);
+        this.ctx.lineTo(centerX - 40, centerY + 10);
+        this.ctx.stroke();
+
+        // 画胡须（右侧）
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX + 40, centerY - 5);
+        this.ctx.lineTo(centerX + 80, centerY);
+        this.ctx.stroke();
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX + 40, centerY + 10);
+        this.ctx.lineTo(centerX + 80, centerY + 10);
         this.ctx.stroke();
     }
 
-    generateSad() {
+    generateFlower() {
         this.clear();
         this.ctx.strokeStyle = 'black';
         this.ctx.lineWidth = 8;
 
         const centerX = this.canvas.width / 2;
-        const centerY = this.canvas.height / 2;
+        const centerY = this.canvas.height / 2 - 30;
 
-        // 画脸轮廓
+        // 画花蕊（中心圆）
         this.ctx.beginPath();
-        this.ctx.arc(centerX, centerY, 100, 0, Math.PI * 2);
+        this.ctx.arc(centerX, centerY, 20, 0, Math.PI * 2);
         this.ctx.stroke();
 
-        // 画左眼
-        this.ctx.beginPath();
-        this.ctx.arc(centerX - 35, centerY - 30, 12, 0, Math.PI * 2);
-        this.ctx.fillStyle = 'black';
-        this.ctx.fill();
+        // 画5片花瓣（椭圆）
+        const petalCount = 5;
+        const petalRadius = 35;
+        const petalDistance = 45;
 
-        // 画右眼
-        this.ctx.beginPath();
-        this.ctx.arc(centerX + 35, centerY - 30, 12, 0, Math.PI * 2);
-        this.ctx.fill();
+        for (let i = 0; i < petalCount; i++) {
+            const angle = (i * 2 * Math.PI) / petalCount - Math.PI / 2;
+            const petalX = centerX + Math.cos(angle) * petalDistance;
+            const petalY = centerY + Math.sin(angle) * petalDistance;
 
-        // 画悲伤的嘴巴（倒转的弧）
-        this.ctx.beginPath();
-        this.ctx.arc(centerX, centerY + 70, 60, 1.2 * Math.PI, 1.8 * Math.PI);
-        this.ctx.stroke();
-    }
+            this.ctx.save();
+            this.ctx.translate(petalX, petalY);
+            this.ctx.rotate(angle);
+            this.ctx.beginPath();
+            this.ctx.ellipse(0, 0, petalRadius, petalRadius * 0.6, 0, 0, Math.PI * 2);
+            this.ctx.stroke();
+            this.ctx.restore();
+        }
 
-    // 生成简化笑脸（无圆圈）
-    generateSimpleSmile() {
-        this.clear();
+        // 画花茎（直线）
         this.ctx.strokeStyle = 'black';
         this.ctx.lineWidth = 8;
-
-        const centerX = this.canvas.width / 2;
-        const centerY = this.canvas.height / 2;
-
-        // 画左眼
         this.ctx.beginPath();
-        this.ctx.arc(centerX - 35, centerY - 30, 12, 0, Math.PI * 2);
-        this.ctx.fillStyle = 'black';
-        this.ctx.fill();
+        this.ctx.moveTo(centerX, centerY + 20);
+        this.ctx.lineTo(centerX, centerY + 120);
+        this.ctx.stroke();
 
-        // 画右眼
+        // 画叶子（左侧）
         this.ctx.beginPath();
-        this.ctx.arc(centerX + 35, centerY - 30, 12, 0, Math.PI * 2);
-        this.ctx.fill();
+        this.ctx.ellipse(centerX - 25, centerY + 60, 20, 12, -0.5, 0, Math.PI * 2);
+        this.ctx.strokeStyle = 'black';
+        this.ctx.lineWidth = 6;
+        this.ctx.stroke();
 
-        // 画微笑的嘴巴
+        // 画叶子（右侧）
         this.ctx.beginPath();
-        this.ctx.arc(centerX, centerY + 10, 60, 0.2 * Math.PI, 0.8 * Math.PI);
+        this.ctx.ellipse(centerX + 25, centerY + 80, 20, 12, 0.5, 0, Math.PI * 2);
         this.ctx.stroke();
     }
 
-    // 生成简化哭脸（无圆圈）
-    generateSimpleSad() {
+    // 生成简化猫（只有耳朵和脸）
+    generateSimpleCat() {
         this.clear();
         this.ctx.strokeStyle = 'black';
         this.ctx.lineWidth = 8;
@@ -657,20 +700,78 @@ class DrawingBoard {
         const centerX = this.canvas.width / 2;
         const centerY = this.canvas.height / 2;
 
+        // 画左耳（三角形）
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX - 60, centerY - 30);
+        this.ctx.lineTo(centerX - 40, centerY - 80);
+        this.ctx.lineTo(centerX - 20, centerY - 30);
+        this.ctx.stroke();
+
+        // 画右耳（三角形）
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX + 20, centerY - 30);
+        this.ctx.lineTo(centerX + 40, centerY - 80);
+        this.ctx.lineTo(centerX + 60, centerY - 30);
+        this.ctx.stroke();
+
         // 画左眼
         this.ctx.beginPath();
-        this.ctx.arc(centerX - 35, centerY - 30, 12, 0, Math.PI * 2);
+        this.ctx.arc(centerX - 25, centerY, 10, 0, Math.PI * 2);
         this.ctx.fillStyle = 'black';
         this.ctx.fill();
 
         // 画右眼
         this.ctx.beginPath();
-        this.ctx.arc(centerX + 35, centerY - 30, 12, 0, Math.PI * 2);
+        this.ctx.arc(centerX + 25, centerY, 10, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // 画悲伤的嘴巴（倒转的弧）
+        // 画简单的嘴巴（W形状）
+        this.ctx.strokeStyle = 'black';
         this.ctx.beginPath();
-        this.ctx.arc(centerX, centerY + 70, 60, 1.2 * Math.PI, 1.8 * Math.PI);
+        this.ctx.moveTo(centerX - 20, centerY + 30);
+        this.ctx.lineTo(centerX - 10, centerY + 40);
+        this.ctx.lineTo(centerX, centerY + 35);
+        this.ctx.lineTo(centerX + 10, centerY + 40);
+        this.ctx.lineTo(centerX + 20, centerY + 30);
+        this.ctx.stroke();
+    }
+
+    // 生成简化花（只有花瓣和花茎）
+    generateSimpleFlower() {
+        this.clear();
+        this.ctx.strokeStyle = 'black';
+        this.ctx.lineWidth = 8;
+
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2 - 20;
+
+        // 画花蕊（小圆点）
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY, 15, 0, Math.PI * 2);
+        this.ctx.fillStyle = 'black';
+        this.ctx.fill();
+
+        // 画4片花瓣（简单圆形）
+        const petalPositions = [
+            { x: -40, y: 0 },   // 左
+            { x: 40, y: 0 },    // 右
+            { x: 0, y: -40 },   // 上
+            { x: 0, y: 40 }     // 下
+        ];
+
+        this.ctx.strokeStyle = 'black';
+        this.ctx.lineWidth = 6;
+        petalPositions.forEach(pos => {
+            this.ctx.beginPath();
+            this.ctx.arc(centerX + pos.x, centerY + pos.y, 25, 0, Math.PI * 2);
+            this.ctx.stroke();
+        });
+
+        // 画花茎（直线）
+        this.ctx.lineWidth = 8;
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX, centerY + 40);
+        this.ctx.lineTo(centerX, centerY + 110);
         this.ctx.stroke();
     }
 
@@ -1425,13 +1526,15 @@ class CNNProcessor {
         const step = document.createElement('div');
         step.className = 'step';
         step.innerHTML = `
-            <h3>🔍 步骤 2：特征探测器工作</h3>
+            <h3>🔍 步骤 2：AI小侦探开始寻找线索</h3>
             <div class="step-description">
-                现在使用3个特别的"特征探测器"来扫描图像！<br>
-                • <strong>横线探测器</strong>：专门找横着的线条（比如嘴巴）<br>
-                • <strong>竖线探测器</strong>：专门找竖着的线条（比如鼻子）<br>
-                • <strong>边缘探测器</strong>：专门找边缘轮廓（比如脸的边缘）<br><br>
-                👀 <strong>看！红色方框就是探测器，它在图像上一格一格地扫描！</strong>
+                <div class="detective-avatar">🤖</div>
+                AI小侦探拿着放大镜仔细观察你的画！它会寻找这些线索：<br>
+                <div style="display: flex; gap: 15px; margin-top: 10px; flex-wrap: wrap;">
+                    <div class="clue-card">📐 <strong>三角形</strong>（可能是耳朵）</div>
+                    <div class="clue-card">⭕ <strong>圆形</strong>（可能是脸或花瓣）</div>
+                    <div class="clue-card">📏 <strong>直线</strong>（可能是花茎）</div>
+                </div>
             </div>
             <div class="visualization" id="convViz">
             </div>
@@ -1444,41 +1547,33 @@ class CNNProcessor {
         const vizContainer = document.getElementById('convViz');
 
         const kernelConfigs = [
-            { name: 'horizontal', label: '横线探测器', desc: '扫描中...' },
-            { name: 'vertical', label: '竖线探测器', desc: '扫描中...' },
-            { name: 'edge', label: '边缘探测器', desc: '扫描中...' }
+            { name: 'edge', label: '🔎 寻找形状', icon: '◇', desc: '扫描轮廓中...' },
+            { name: 'vertical', label: '📏 寻找竖线', icon: '┃', desc: '扫描竖线中...' },
+            { name: 'horizontal', label: '📐 寻找横线', icon: '━', desc: '扫描横线中...' }
         ];
 
         for (let config of kernelConfigs) {
             const gridDiv = document.createElement('div');
-            gridDiv.className = 'grid-display';
+            gridDiv.className = 'grid-display detective-scan';
             gridDiv.innerHTML = `
-                <div class="grid-title">${config.label}</div>
-                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <div class="grid-title">${config.icon} ${config.label}</div>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center;">
                     <div>
-                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">探测器扫描</div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">🔍 扫描中</div>
                         <canvas id="input_${config.name}"></canvas>
                     </div>
                     <div class="arrow">→</div>
                     <div>
-                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">提取的特征</div>
+                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">✨ 发现的线索</div>
                         <canvas id="output_${config.name}"></canvas>
                     </div>
-                </div>
-                <div style="margin-top: 10px;">
-                    <div style="font-size: 12px; color: #666; margin-bottom: 5px;">探测器样子（3×3）</div>
-                    <canvas id="kernel_${config.name}"></canvas>
                 </div>
             `;
             vizContainer.appendChild(gridDiv);
 
             await this.delay(100);
 
-            // 绘制卷积核
-            const kernelCanvas = document.getElementById(`kernel_${config.name}`);
-            Visualizer.drawKernel(kernelCanvas, this.kernels[config.name]);
-
-            // 执行动画卷积
+            // 执行动画卷积（不显示卷积核细节）
             const inputCanvas = document.getElementById(`input_${config.name}`);
             const outputCanvas = document.getElementById(`output_${config.name}`);
             const result = await Visualizer.animateConvolution(
@@ -1500,13 +1595,14 @@ class CNNProcessor {
         const step = document.createElement('div');
         step.className = 'step';
         step.innerHTML = `
-            <h3>📦 步骤 3：信息压缩（池化）</h3>
+            <h3>🎒 步骤 3：整理收集到的线索</h3>
             <div class="step-description">
-                图像太大了，处理起来太慢！我们用"取最强信号"的方法来压缩。<br>
-                把每 2×2 的格子合并成 1 个格子，只保留最强的信号（最大的数值）。<br>
-                🌈 <strong>用热力图显示：红色=强特征，蓝色=弱特征</strong>
+                <div class="detective-avatar">🤖</div>
+                AI小侦探把找到的线索整理成<strong>线索卡片</strong>！<br>
+                每张卡片记录了发现的重要特征。<br>
+                🌈 <strong>颜色说明：红色=很明显的特征，蓝色=不太明显</strong>
             </div>
-            <div class="visualization" id="poolViz">
+            <div class="clue-collection" id="poolViz">
             </div>
         `;
         this.stepsContainer.appendChild(step);
@@ -1516,38 +1612,37 @@ class CNNProcessor {
         const results = {};
         const vizContainer = document.getElementById('poolViz');
 
+        const featureNames = {
+            'edge': { icon: '◇', label: '形状特征', desc: '找到的轮廓' },
+            'vertical': { icon: '┃', label: '竖线特征', desc: '找到的竖线' },
+            'horizontal': { icon: '━', label: '横线特征', desc: '找到的横线' }
+        };
+
         for (let [name, matrix] of Object.entries(convResults)) {
+            const featureInfo = featureNames[name];
             const gridDiv = document.createElement('div');
-            gridDiv.className = 'grid-display';
+            gridDiv.className = 'grid-display clue-card-display';
             gridDiv.innerHTML = `
-                <div class="grid-title">${name} 特征压缩</div>
-                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                    <div>
-                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">压缩前（灰度）</div>
-                        <canvas id="poolInput_${name}"></canvas>
-                    </div>
-                    <div class="arrow">→</div>
-                    <div>
-                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">压缩后（热力图）</div>
-                        <canvas id="poolOutput_${name}"></canvas>
-                    </div>
+                <div class="grid-title">${featureInfo.icon} ${featureInfo.label}</div>
+                <div style="text-align: center;">
+                    <div style="font-size: 12px; color: #666; margin-bottom: 5px;">✨ ${featureInfo.desc}</div>
+                    <canvas id="poolOutput_${name}" style="border: 3px solid #667eea; border-radius: 8px;"></canvas>
                 </div>
             `;
             vizContainer.appendChild(gridDiv);
 
             await this.delay(100);
 
-            // 执行动画池化（输出用热力图）
-            const inputCanvas = document.getElementById(`poolInput_${name}`);
+            // 执行池化（只显示输出热力图）
             const outputCanvas = document.getElementById(`poolOutput_${name}`);
             const pooled = await Visualizer.animatePooling(
-                inputCanvas,
+                document.createElement('canvas'),  // 不显示输入
                 outputCanvas,
                 matrix,
                 2,  // 池化大小
-                6,  // 输入单元格较小（26×26矩阵）
-                12, // 输出单元格较大（13×13矩阵）
-                30,  // 速度：30ms 每步
+                6,  // 输入单元格较小
+                12, // 输出单元格较大
+                30,  // 速度
                 true // 输出使用热力图
             );
 
@@ -1566,11 +1661,24 @@ class CNNProcessor {
         const useTraining = trainingSamples.length >= 2;
 
         step.innerHTML = `
-            <h3>🎯 步骤 4：最终判断</h3>
+            <h3>📋 步骤 4：查阅档案库</h3>
             <div class="step-description">
+                <div class="detective-avatar">🤖</div>
                 ${useTraining ?
-                    '现在使用<strong>KNN算法</strong>，找到最相似的训练样本！<br>计算机会把当前图像的特征与所有训练样本对比，找出最像的几个。' :
-                    '现在把所有提取的特征综合起来判断：这是什么表情？<br>计算机会根据它"学过"的规律来做判断：<br>• 如果横线探测器在嘴巴<strong>上半部</strong>找到更强的特征 → 笑脸 😊<br>• 如果在嘴巴<strong>下半部</strong>找到更强的特征 → 哭脸 😢'
+                    'AI小侦探打开档案库，寻找最匹配的训练样本！<br>它会对比收集到的线索，找出最相似的档案。' :
+                    'AI小侦探翻开档案本，里面记录了两种物体的特征：<br>' +
+                    '<div class="archive-cards">' +
+                    '<div class="archive-card cat-card">' +
+                    '<div class="archive-icon">🐱</div>' +
+                    '<div class="archive-title">小猫档案</div>' +
+                    '<div class="archive-features">✓ 顶部有尖耳朵<br>✓ 中间有圆脸<br>✓ 没有直立的茎</div>' +
+                    '</div>' +
+                    '<div class="archive-card flower-card">' +
+                    '<div class="archive-icon">🌸</div>' +
+                    '<div class="archive-title">花朵档案</div>' +
+                    '<div class="archive-features">✓ 周围有花瓣<br>✓ 中间有花蕊<br>✓ 下方有花茎</div>' +
+                    '</div>' +
+                    '</div>'
                 }
             </div>
             ${useTraining ? '<div id="matchingAnimation" class="matching-animation"></div>' : ''}
@@ -1743,7 +1851,7 @@ class CNNProcessor {
                 comparingCtx.fillText('样本' + (i+1), 40, 40);
             }
 
-            comparingLabel.textContent = `${sample.label === 'smile' ? '😊' : '😢'} 样本 ${i + 1}`;
+            comparingLabel.textContent = `${sample.label === 'cat' ? '🐱' : '🌸'} 样本 ${i + 1}`;
             distanceValue.innerHTML = `距离: <strong>${distance.toFixed(2)}</strong><br>相似度: <strong>${similarity}%</strong>`;
             status.innerHTML = `🔍 对比样本 ${i + 1}/${samples.length} - 相似度: <strong style="color: #667eea;">${similarity}%</strong>`;
 
@@ -1826,7 +1934,7 @@ class CNNProcessor {
             comparingCtx.drawImage(img, 0, 0, 80, 80);
         }
 
-        comparingLabel.textContent = `${topSample.label === 'smile' ? '😊' : '😢'} 最相似样本`;
+        comparingLabel.textContent = `${topSample.label === 'cat' ? '🐱' : '🌸'} 最相似样本`;
         distanceValue.innerHTML = `距离: <strong style="color: #28a745;">${topMatch.distance.toFixed(2)}</strong><br>相似度: <strong style="color: #28a745;">${topMatch.similarity}%</strong>`;
 
         // 高亮最相似的样本
@@ -2090,7 +2198,7 @@ class CNNProcessor {
         const samples = this.trainingManager.getSamples();
 
         // 将中文标签转换为英文
-        const predictedLabelEn = predictedLabel === '笑脸' ? 'smile' : 'sad';
+        const predictedLabelEn = predictedLabel === '小猫' ? 'cat' : 'flower';
 
         let html = `
             <div style="margin-top: 25px; padding: 20px; background: rgba(248, 249, 250, 0.95); border-radius: 10px; border: 2px solid rgba(102, 126, 234, 0.3); box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
@@ -2111,7 +2219,7 @@ class CNNProcessor {
                     <div style="margin: 15px 0;">
                         <canvas id="similarSampleCanvas${i}" width="100" height="100" style="border-radius: 8px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.2);"></canvas>
                     </div>
-                    <div class="sample-emoji">${sample.label === 'smile' ? '😊' : '😢'}</div>
+                    <div class="sample-emoji">${sample.label === 'cat' ? '🐱' : '🌸'}</div>
                     ${isMatch ? '<div class="match-badge">✓ 匹配</div>' : ''}
                     <div class="sample-similarity">
                         <div class="similarity-text" style="font-size: 1.1em; font-weight: 600; color: #667eea; margin-top: 8px;">${similarity}% 相似</div>
@@ -2188,16 +2296,16 @@ class CNNProcessor {
             const prediction = this.classifier.predict(featureVector, trainingSamples);
 
             if (prediction) {
-                const isSmile = prediction.label === 'smile';
-                const emoji = isSmile ? '😊' : '😢';
-                const labelText = isSmile ? '笑脸' : '哭脸';
+                const isCat = prediction.label === 'cat';
+                const emoji = isCat ? '🐱' : '🌸';
+                const labelText = isCat ? '小猫' : '花朵';
 
                 return {
                     emoji: emoji,
                     label: labelText,
                     confidence: prediction.confidence,
                     reason: `🎓 <strong>使用你训练的模型！</strong><br>` +
-                            `计算机找到了 <strong>${prediction.neighbors.length} 个最相似的训练样本</strong>，` +
+                            `AI小侦探找到了 <strong>${prediction.neighbors.length} 个最相似的训练样本</strong>，` +
                             `其中 ${prediction.neighbors.filter(n => n.label === prediction.label).length} 个是${labelText}。<br>` +
                             `最相似样本的距离：${prediction.closestDistance.toFixed(2)}`,
                     usedTraining: true,
@@ -2206,115 +2314,122 @@ class CNNProcessor {
             }
         }
 
-        // 如果没有训练数据，使用原来的规则
-        // 简化策略：主要使用横线探测器的特征分布
-        // 笑脸：嘴巴区域的上部有横线（嘴角向上）
-        // 哭脸：嘴巴区域的下部有横线（嘴角向下）
+        // 如果没有训练数据，使用基于区域的简单规则
+        // 猫的特征：上方有尖角（耳朵）、中间有圆形（脸）
+        // 花的特征：中间有圆形分布（花瓣）、下方有竖线（花茎）
 
+        const edgeFeature = features.edge;
+        const vertFeature = features.vertical;
         const horizFeature = features.horizontal;
-        const featSize = horizFeature.length;
+        const featSize = edgeFeature.length;
 
-        // 嘴巴在中部偏下位置（35%-65%）
-        const mouthStartY = Math.floor(featSize * 0.35);
-        const mouthEndY = Math.floor(featSize * 0.65);
-        const mouthCenterY = Math.floor((mouthStartY + mouthEndY) / 2);
+        // 特征1：检测上方的尖角（猫耳朵）
+        let topTriangleScore = 0;
+        const topRegion = Math.floor(featSize * 0.3);
+        for (let y = 0; y < topRegion; y++) {
+            for (let x = 0; x < featSize; x++) {
+                // 边缘特征强 = 可能是尖角
+                topTriangleScore += edgeFeature[y][x];
+            }
+        }
+        topTriangleScore /= (topRegion * featSize);
 
-        // 计算嘴巴区域中心横向的特征强度
-        const centerRegionX = Math.floor(featSize * 0.25);
-        const centerRegionXEnd = Math.floor(featSize * 0.75);
+        // 特征2：检测中间的圆形区域（脸或花瓣）
+        let centerCircleScore = 0;
+        const centerStart = Math.floor(featSize * 0.3);
+        const centerEnd = Math.floor(featSize * 0.7);
+        for (let y = centerStart; y < centerEnd; y++) {
+            for (let x = centerStart; x < centerEnd; x++) {
+                centerCircleScore += edgeFeature[y][x];
+            }
+        }
+        const centerArea = (centerEnd - centerStart) * (centerEnd - centerStart);
+        centerCircleScore /= centerArea;
 
-        // 分析嘴巴中心线上下的特征
-        let upperHalfStrength = 0;
-        let lowerHalfStrength = 0;
+        // 特征3：检测下方的竖线（花茎）
+        let bottomVerticalScore = 0;
+        const bottomStart = Math.floor(featSize * 0.6);
+        const centerX = Math.floor(featSize / 2);
+        const xRange = Math.floor(featSize * 0.2);
+        for (let y = bottomStart; y < featSize; y++) {
+            for (let x = Math.max(0, centerX - xRange); x < Math.min(featSize, centerX + xRange); x++) {
+                bottomVerticalScore += vertFeature[y][x];
+            }
+        }
+        const bottomArea = (featSize - bottomStart) * xRange * 2;
+        bottomVerticalScore /= bottomArea;
 
-        for (let y = mouthStartY; y < mouthEndY; y++) {
-            for (let x = centerRegionX; x < centerRegionXEnd; x++) {
-                const strength = horizFeature[y][x];
-                if (y < mouthCenterY) {
-                    upperHalfStrength += strength;
-                } else {
-                    lowerHalfStrength += strength;
+        // 特征4：检测周围的分散色块（花瓣）
+        let peripheralScore = 0;
+        const midX = Math.floor(featSize / 2);
+        const midY = Math.floor(featSize / 2);
+        const outerRadius = Math.floor(featSize * 0.4);
+        const innerRadius = Math.floor(featSize * 0.2);
+        
+        for (let y = 0; y < featSize; y++) {
+            for (let x = 0; x < featSize; x++) {
+                const dist = Math.sqrt((x - midX) ** 2 + (y - midY) ** 2);
+                if (dist > innerRadius && dist < outerRadius) {
+                    peripheralScore += edgeFeature[y][x];
                 }
             }
         }
-
-        // 计算原始图像中嘴巴区域的像素分布
-        const imgMouthStartY = Math.floor(size * 0.35);
-        const imgMouthEndY = Math.floor(size * 0.65);
-        const imgMouthCenterY = Math.floor((imgMouthStartY + imgMouthEndY) / 2);
-        const centerX = Math.floor(size / 2);
-
-        let upperDarkPixels = 0;
-        let lowerDarkPixels = 0;
-
-        for (let y = imgMouthStartY; y < imgMouthEndY; y++) {
-            for (let dx = -8; dx <= 8; dx++) {
-                const x = centerX + dx;
-                if (x >= 0 && x < size) {
-                    const pixelValue = originalMatrix[y][x];
-                    if (pixelValue < 0.5) {  // 深色像素
-                        if (y < imgMouthCenterY) {
-                            upperDarkPixels++;
-                        } else {
-                            lowerDarkPixels++;
-                        }
-                    }
-                }
-            }
-        }
+        peripheralScore /= (outerRadius - innerRadius) * featSize;
 
         // 调试信息
         console.log('分类特征:', {
-            upperHalfStrength: upperHalfStrength.toFixed(2),
-            lowerHalfStrength: lowerHalfStrength.toFixed(2),
-            upperDarkPixels,
-            lowerDarkPixels,
-            ratio: (upperHalfStrength / (lowerHalfStrength + 0.001)).toFixed(2)
+            topTriangleScore: topTriangleScore.toFixed(3),
+            centerCircleScore: centerCircleScore.toFixed(3),
+            bottomVerticalScore: bottomVerticalScore.toFixed(3),
+            peripheralScore: peripheralScore.toFixed(3)
         });
 
-        // 判断逻辑
-        let isSmile = false;
-        let confidence = 70;
+        // 判断逻辑：猫 vs 花
+        let isCat = false;
+        let confidence = 60;
+        let detectedFeatures = [];
 
-        // 主要判据：横线特征的上下比例
-        const featureRatio = upperHalfStrength / (lowerHalfStrength + 0.001);
+        // 猫的特征组合：上方尖角 + 中间圆形 - 下方竖线
+        const catScore = topTriangleScore * 2 + centerCircleScore - bottomVerticalScore;
+        
+        // 花的特征组合：周围分散 + 下方竖线 + 中间圆形
+        const flowerScore = peripheralScore * 1.5 + bottomVerticalScore * 2 + centerCircleScore * 0.5;
 
-        if (featureRatio > 1.3) {
-            // 上方特征明显更强 → 笑脸
-            isSmile = true;
-            confidence = Math.min(95, 70 + (featureRatio - 1.3) * 30);
-        } else if (featureRatio < 0.7) {
-            // 下方特征明显更强 → 哭脸
-            isSmile = false;
-            confidence = Math.min(95, 70 + (1.3 - featureRatio) * 30);
+        console.log('得分:', { catScore: catScore.toFixed(3), flowerScore: flowerScore.toFixed(3) });
+
+        if (catScore > flowerScore) {
+            isCat = true;
+            confidence = Math.min(95, 60 + Math.abs(catScore - flowerScore) * 30);
+            
+            if (topTriangleScore > 0.1) detectedFeatures.push('顶部发现尖尖的三角形（耳朵）');
+            if (centerCircleScore > 0.1) detectedFeatures.push('中间发现圆圆的形状（脸蛋）');
+            detectedFeatures.push('没有检测到花茎特征');
         } else {
-            // 特征不明显，使用原始像素分布
-            if (upperDarkPixels > lowerDarkPixels * 1.2) {
-                isSmile = true;
-                confidence = 65;
-            } else if (lowerDarkPixels > upperDarkPixels * 1.2) {
-                isSmile = false;
-                confidence = 65;
-            } else {
-                // 默认判断为笑脸（因为默认生成的是笑脸）
-                isSmile = true;
-                confidence = 60;
-            }
+            isCat = false;
+            confidence = Math.min(95, 60 + Math.abs(flowerScore - catScore) * 30);
+            
+            if (peripheralScore > 0.1) detectedFeatures.push('周围发现分散的圆形（花瓣）');
+            if (bottomVerticalScore > 0.05) detectedFeatures.push('下方发现直直的竖线（花茎）');
+            if (centerCircleScore > 0.1) detectedFeatures.push('中心发现圆形（花蕊）');
         }
 
-        if (isSmile) {
+        if (isCat) {
             return {
-                emoji: '😊',
-                label: '笑脸',
+                emoji: '🐱',
+                label: '小猫',
                 confidence: Math.round(confidence),
-                reason: `横线探测器在嘴巴<strong>上半部</strong>发现了较强的特征（上 ${upperHalfStrength.toFixed(1)} vs 下 ${lowerHalfStrength.toFixed(1)}），说明嘴角向上翘起。这是一个开心的表情！`
+                reason: `AI小侦探发现了这些线索：<br>` +
+                        `• ${detectedFeatures.join('<br>• ')}<br>` +
+                        `<strong>结论：</strong>这些特征符合小猫的档案！`
             };
         } else {
             return {
-                emoji: '😢',
-                label: '哭脸',
+                emoji: '🌸',
+                label: '花朵',
                 confidence: Math.round(confidence),
-                reason: `横线探测器在嘴巴<strong>下半部</strong>发现了较强的特征（下 ${lowerHalfStrength.toFixed(1)} vs 上 ${upperHalfStrength.toFixed(1)}），说明嘴角向下撇。这是一个悲伤的表情。`
+                reason: `AI小侦探发现了这些线索：<br>` +
+                        `• ${detectedFeatures.join('<br>• ')}<br>` +
+                        `<strong>结论：</strong>这些特征符合花朵的档案！`
             };
         }
     }
@@ -2470,7 +2585,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const label = document.createElement('div');
             label.className = 'sample-label';
-            label.textContent = sample.label === 'smile' ? '😊' : '😢';
+            label.textContent = sample.label === 'cat' ? '🐱' : '🌸';
 
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'sample-delete';
@@ -2496,8 +2611,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateStats() {
         const stats = processor.getTrainingStats();
         document.getElementById('trainingCount').textContent = stats.total;
-        document.getElementById('smileCount').textContent = stats.smileCount;
-        document.getElementById('sadCount').textContent = stats.sadCount;
+        document.getElementById('catCount').textContent = stats.catCount;
+        document.getElementById('flowerCount').textContent = stats.flowerCount;
     }
 
     // 监听训练数据加载完成事件
@@ -2518,8 +2633,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('trainingMode').classList.remove('active');
         document.getElementById('trainingControls').style.display = 'none';
         document.getElementById('trainingTip').style.display = 'none';
-        document.getElementById('drawingSectionTitle').textContent = '1️⃣ 画一个表情';
-        document.getElementById('modeInfo').textContent = '💡 提示：可以用鼠标画，或者点击按钮生成表情';
+        document.getElementById('drawingSectionTitle').textContent = '1️⃣ 画一幅画';
+        document.getElementById('modeInfo').textContent = '💡 提示：可以用鼠标画，或者点击按钮生成简笔画';
     });
 
     document.getElementById('trainingMode').addEventListener('click', () => {
@@ -2528,32 +2643,32 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('recognitionMode').classList.remove('active');
         document.getElementById('trainingControls').style.display = 'block';
         document.getElementById('trainingTip').style.display = 'block';
-        document.getElementById('drawingSectionTitle').textContent = '1️⃣ 画一个表情并标注';
-        document.getElementById('modeInfo').textContent = '🎓 提示：画好后，点击下方按钮告诉计算机这是什么表情';
+        document.getElementById('drawingSectionTitle').textContent = '1️⃣ 画一幅画并标注';
+        document.getElementById('modeInfo').textContent = '🎓 提示：画好后，点击下方按钮告诉AI小侦探这是什么';
         updateStats();
         updateTrainingSamplesDisplay();
     });
 
-    // 训练模式：标注为笑脸
-    document.getElementById('labelSmile').addEventListener('click', async () => {
-        const stats = await processor.addTrainingSample('smile');
+    // 训练模式：标注为小猫
+    document.getElementById('labelCat').addEventListener('click', async () => {
+        const stats = await processor.addTrainingSample('cat');
         updateStats();
         updateTrainingSamplesDisplay();
         drawingBoard.clear();
 
         // 显示反馈
-        alert(`✅ 笑脸样本已添加！\n总样本数：${stats.total}\n笑脸：${stats.smileCount} | 哭脸：${stats.sadCount}`);
+        alert(`✅ 小猫样本已添加！\n总样本数：${stats.total}\n小猫：${stats.catCount} | 花朵：${stats.flowerCount}`);
     });
 
-    // 训练模式：标注为哭脸
-    document.getElementById('labelSad').addEventListener('click', async () => {
-        const stats = await processor.addTrainingSample('sad');
+    // 训练模式：标注为花朵
+    document.getElementById('labelFlower').addEventListener('click', async () => {
+        const stats = await processor.addTrainingSample('flower');
         updateStats();
         updateTrainingSamplesDisplay();
         drawingBoard.clear();
 
         // 显示反馈
-        alert(`✅ 哭脸样本已添加！\n总样本数：${stats.total}\n笑脸：${stats.smileCount} | 哭脸：${stats.sadCount}`);
+        alert(`✅ 花朵样本已添加！\n总样本数：${stats.total}\n小猫：${stats.catCount} | 花朵：${stats.flowerCount}`);
     });
 
     // 清空训练数据
@@ -2565,24 +2680,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 生成笑脸
-    document.getElementById('generateSmile').addEventListener('click', () => {
-        drawingBoard.generateSmile();
+    // 生成小猫
+    document.getElementById('generateCat').addEventListener('click', () => {
+        drawingBoard.generateCat();
     });
 
-    // 生成哭脸
-    document.getElementById('generateSad').addEventListener('click', () => {
-        drawingBoard.generateSad();
+    // 生成花朵
+    document.getElementById('generateFlower').addEventListener('click', () => {
+        drawingBoard.generateFlower();
     });
 
-    // 生成简化笑脸
-    document.getElementById('generateSimpleSmile').addEventListener('click', () => {
-        drawingBoard.generateSimpleSmile();
+    // 生成简化小猫
+    document.getElementById('generateSimpleCat').addEventListener('click', () => {
+        drawingBoard.generateSimpleCat();
     });
 
-    // 生成简化哭脸
-    document.getElementById('generateSimpleSad').addEventListener('click', () => {
-        drawingBoard.generateSimpleSad();
+    // 生成简化花朵
+    document.getElementById('generateSimpleFlower').addEventListener('click', () => {
+        drawingBoard.generateSimpleFlower();
     });
 
     // 清空画板
@@ -2606,7 +2721,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 初始化
-    drawingBoard.generateSmile();
+    drawingBoard.generateCat();
     updateStats();
     updateTrainingSamplesDisplay();
 });

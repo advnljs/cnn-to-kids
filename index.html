@@ -14,8 +14,8 @@
         </div>
 
         <header>
-            <h1>🎨 表情识别小课堂</h1>
-            <p class="subtitle">看看计算机是如何一步一步认出你的表情的！</p>
+            <h1>🔍 AI小侦探：画板里的秘密</h1>
+            <p class="subtitle">看看AI小侦探如何通过寻找线索，认出你画的是小猫还是花朵！</p>
         </header>
 
         <div class="main-content">
@@ -27,44 +27,44 @@
                     <button id="trainingMode" class="mode-btn">🎓 训练模式</button>
                 </div>
 
-                <h2 id="drawingSectionTitle">1️⃣ 画一个表情</h2>
+                <h2 id="drawingSectionTitle">1️⃣ 画一幅画</h2>
                 <div class="canvas-container">
                     <canvas id="drawingCanvas" width="280" height="280"></canvas>
                 </div>
                 <div class="controls">
-                    <button id="generateSmile" class="btn btn-primary">😊 完整笑脸</button>
-                    <button id="generateSad" class="btn btn-primary">😢 完整哭脸</button>
+                    <button id="generateCat" class="btn btn-primary">🐱 完整小猫</button>
+                    <button id="generateFlower" class="btn btn-primary">🌸 完整花朵</button>
                     <button id="clearCanvas" class="btn btn-secondary">🗑️ 清空</button>
                 </div>
                 <div class="controls" style="margin-top: 5px;">
-                    <button id="generateSimpleSmile" class="btn btn-primary" style="font-size: 14px;">😊 简化笑脸</button>
-                    <button id="generateSimpleSad" class="btn btn-primary" style="font-size: 14px;">😢 简化哭脸</button>
+                    <button id="generateSimpleCat" class="btn btn-primary" style="font-size: 14px;">🐱 简化小猫</button>
+                    <button id="generateSimpleFlower" class="btn btn-primary" style="font-size: 14px;">🌸 简化花朵</button>
                 </div>
 
                 <!-- 训练模式专用按钮 -->
                 <div id="trainingControls" class="training-controls" style="display: none;">
-                    <h3>为这个表情标注：</h3>
+                    <h3>告诉AI小侦探这是什么：</h3>
                     <div class="label-buttons">
-                        <button id="labelSmile" class="btn btn-label btn-smile">😊 这是笑脸</button>
-                        <button id="labelSad" class="btn btn-label btn-sad">😢 这是哭脸</button>
+                        <button id="labelCat" class="btn btn-label btn-cat">🐱 这是小猫</button>
+                        <button id="labelFlower" class="btn btn-label btn-flower">🌸 这是花朵</button>
                     </div>
                     <div class="training-stats">
                         <p>已收集训练样本：<span id="trainingCount">0</span> 个</p>
-                        <p>笑脸：<span id="smileCount">0</span> 个 | 哭脸：<span id="sadCount">0</span> 个</p>
+                        <p>小猫：<span id="catCount">0</span> 个 | 花朵：<span id="flowerCount">0</span> 个</p>
                     </div>
                 </div>
 
                 <div class="drawing-info">
-                    <p id="modeInfo">💡 提示：可以用鼠标画，或者点击按钮生成表情</p>
+                    <p id="modeInfo">💡 提示：可以用鼠标画，或者点击按钮生成简笔画</p>
                 </div>
 
                 <!-- 训练模式提示 -->
                 <div id="trainingTip" class="training-tip" style="display: none;">
                     <strong>⚠️ 训练建议：</strong>
                     <ul style="margin: 5px 0 0 20px; font-size: 13px;">
-                        <li>每种表情至少需要<strong>2种风格</strong>（完整+简化）</li>
+                        <li>每种物体至少需要<strong>2种风格</strong>（完整+简化）</li>
                         <li>样本多样化能提高识别准确率</li>
-                        <li>推荐：3个完整+3个简化，每种表情</li>
+                        <li>推荐：每种物体各3-5个不同的画法</li>
                     </ul>
                 </div>
 
@@ -78,8 +78,8 @@
 
             <!-- 右侧：处理步骤展示 -->
             <div class="steps-section">
-                <h2>2️⃣ 计算机如何识别</h2>
-                <button id="startProcess" class="btn btn-success btn-large">🚀 开始识别过程</button>
+                <h2>2️⃣ AI小侦探如何工作</h2>
+                <button id="startProcess" class="btn btn-success btn-large">🔍 开始侦探工作</button>
                 <button id="resetProcess" class="btn btn-secondary" style="display: none;">🔄 重新开始</button>
 
                 <div id="stepsContainer" class="steps-container">
@@ -98,90 +98,84 @@
             <h2>🧠 知识小课堂</h2>
             <div class="knowledge-cards">
                 <div class="knowledge-card">
-                    <h3>🔍 什么是特征探测器？</h3>
-                    <p>想象一下，你有一副特殊的眼镜，戴上它只能看到"横线"，再换一副只能看到"竖线"。特征探测器就像这样的眼镜，每个探测器只负责找一种特定的图案！</p>
+                    <h3>🔍 AI小侦探是谁？</h3>
+                    <p>AI小侦探是一个聪明的计算机程序！它会像真正的侦探一样，拿着放大镜仔细观察你的画，寻找能帮助它判断的"线索"。每个线索都是画中的一个特征，比如三角形、圆形或直线。</p>
                     <div class="example">
                         <strong>例如：</strong>
                         <ul>
-                            <li>探测器1：专门找横线 ━━━</li>
-                            <li>探测器2：专门找竖线 ┃</li>
-                            <li>探测器3：专门找斜线 ╱</li>
+                            <li>🔺 看到尖尖的三角形 → 可能是猫耳朵</li>
+                            <li>⭕ 看到圆形 → 可能是脸或花瓣</li>
+                            <li>📏 看到直线 → 可能是花茎</li>
                         </ul>
                     </div>
                 </div>
 
                 <div class="knowledge-card">
-                    <h3>📦 什么是信息压缩？</h3>
-                    <p>把一张大照片缩小，虽然细节少了，但重要的内容还在。计算机用"取最强信号"的方法，把 2×2 的格子压缩成 1 个格子，这样处理起来更快！</p>
+                    <h3>📋 什么是档案库？</h3>
+                    <p>档案库就像一本图鉴，里面记录了不同物体的特征。AI小侦探会把找到的线索和档案库里的记录对比，看看最像哪一个！</p>
                     <div class="example">
-                        <strong>例如：</strong> 4个格子 [8, 3, 5, 2] → 取最大值 8
+                        <strong>小猫档案：</strong> 顶部有尖耳朵 + 中间有圆脸<br>
+                        <strong>花朵档案：</strong> 周围有花瓣 + 下方有花茎
                     </div>
                 </div>
 
                 <div class="knowledge-card">
-                    <h3>🎯 为什么要分层处理？</h3>
-                    <p>就像搭积木一样：先找到简单的线条，再用线条组成眼睛、嘴巴，最后用这些组成完整的表情。这叫"从简单到复杂"的学习方法！</p>
+                    <h3>🎒 什么是线索卡片？</h3>
+                    <p>AI小侦探找到线索后，会把它们记录在卡片上。每张卡片用不同的颜色表示线索有多明显：<strong>红色=很明显</strong>，<strong>蓝色=不太明显</strong>。这些卡片会帮助它做最后的判断！</p>
                     <div class="example">
-                        <strong>层次：</strong> 线条 → 图案 → 部件 → 完整表情
+                        <strong>卡片类型：</strong><br>
+                        ◇ 形状卡 | ┃ 竖线卡 | ━ 横线卡
                     </div>
                 </div>
 
                 <div class="knowledge-card">
-                    <h3>🤖 计算机如何学习？</h3>
-                    <p>计算机看过成千上万张笑脸和哭脸后，会总结规律："嘴巴向上弯的是笑脸，向下弯的是哭脸"。这个过程叫"训练"，就像你学认字一样！</p>
+                    <h3>🤖 AI如何学习？</h3>
+                    <p>就像你学认字一样，AI也需要练习！在<strong>训练模式</strong>下，你画一个小猫并告诉它"这是小猫"，它就会记住这个样子。画的例子越多，它就越聪明！</p>
                     <div class="example">
-                        <strong>训练过程：</strong> 看大量图片 → 找规律 → 记住规律 → 识别新图片
+                        <strong>学习过程：</strong> 看例子 → 找规律 → 记住特征 → 识别新图片
                     </div>
                 </div>
 
                 <div class="knowledge-card">
-                    <h3>🎓 什么是训练模式？</h3>
-                    <p>在训练模式下，你可以教计算机认识表情！画一个笑脸，告诉它"这是笑脸"；画一个哭脸，告诉它"这是哭脸"。当你提供的例子越多，计算机就越聪明！</p>
+                    <h3>🎯 为什么要寻找"特征"？</h3>
+                    <p>如果直接记住整张图，画法稍微变一点就认不出来了。但如果记住<strong>关键特征</strong>（耳朵、花瓣等），不管你怎么画，只要这些特征在，AI就能认出来！</p>
                     <div class="example">
-                        <strong>建议：</strong> 至少提供每种表情 3-5 个不同的例子，让计算机学得更好！
+                        <strong>比喻：</strong> 你认朋友不是靠记住他的衣服，而是记住他的脸、声音等<strong>不会变的特征</strong>！
                     </div>
                 </div>
 
                 <div class="knowledge-card">
-                    <h3>🔬 为什么要用区域平均采样？</h3>
-                    <p>画布是280×280像素，但要缩小到28×28（缩小10倍！）。如果只取一个点，细线条可能会消失。<strong>区域平均采样</strong>会把10×10区域内的所有像素取平均，这样线条不会丢失！</p>
+                    <h3>🔬 什么是"扫描"？</h3>
+                    <p>AI小侦探用放大镜一小块一小块地看你的画，就像你读书时一个字一个字地看。通过扫描每个区域，它能找到藏在画里的所有线索！</p>
                     <div class="example">
-                        <strong>比喻：</strong> 就像把一张大照片缩小，不能只取几个点，要把每一小块的信息都平均起来，才不会失真！
+                        <strong>扫描步骤：</strong> 从左到右 → 从上到下 → 找到所有线索 → 汇总
                     </div>
                 </div>
 
                 <div class="knowledge-card">
-                    <h3>🎯 什么是自动居中和对齐？</h3>
-                    <p>人类看表情时，不管表情在左边、右边还是中间，都能认出来。计算机也需要这个能力！<strong>自动居中</strong>功能会找到表情的边界，自动裁剪并移到画布中心，让识别更准确！</p>
+                    <h3>🌈 颜色的含义</h3>
+                    <p>在线索卡片中，不同颜色代表不同的意思。AI用这些颜色快速判断哪些线索最重要！</p>
                     <div class="example">
-                        <strong>处理流程：</strong> 检测边界 → 裁剪空白 → 缩放到合适大小 → 移到中心
+                        <strong>颜色说明：</strong><br>
+                        • 🔴 红色：非常明显的特征<br>
+                        • 🟡 黄绿色：比较明显的特征<br>
+                        • 🔵 蓝色：不太明显的特征
                     </div>
                 </div>
 
                 <div class="knowledge-card">
-                    <h3>🌍 什么是混合特征提取？</h3>
-                    <p><strong>混合特征</strong>结合了两种方法：<strong>①降采样</strong>保留整体信息，<strong>②关键对比</strong>专门识别笑脸/哭脸！比如，我们特别计算"上半部分-下半部分"的横线强度差异：笑脸这个值是正的（嘴角上翘），哭脸是负的（嘴角下翘）。</p>
+                    <h3>⚡ 为什么识别这么快？</h3>
+                    <p>AI小侦探会把复杂的画<strong>简化</strong>成几张简单的卡片，这样对比起来非常快！就像你看到一个人，不需要数他有多少根头发，只要看到大概的样子就能认出来。</p>
                     <div class="example">
-                        <strong>特征组成（84维）：</strong><br>
-                        • 降采样：75个数字（空间信息）<br>
-                        • 判别特征：9个数字（上/中/下对比）<br>
-                        • 效果：既能区分表情，又能识别变体！
-                    </div>
-                </div>
-
-                <div class="knowledge-card">
-                    <h3>⚖️ 什么是加权距离计算？</h3>
-                    <p>在84维特征中，有75个空间特征和9个判别特征。如果所有特征权重相同，判别特征（10.7%）会被空间特征（89.3%）淹没！<strong>加权距离</strong>给判别特征<strong>10倍权重</strong>，让"嘴角上翘/下翘"这种关键信息更重要！</p>
-                    <div class="example">
-                        <strong>比喻：</strong>考试时，重点题目分数更高。同样，识别表情时，"上下对比"比"具体位置"更重要，所以给它更高的权重！
+                        <strong>加速方法：</strong> 只记住重要信息 → 忽略细节 → 快速比对
                     </div>
                 </div>
             </div>
         </div>
 
         <footer>
-            <p>🎓 这个小工具展示了卷积神经网络（CNN）的基本原理</p>
-            <p>真实的人脸识别系统有更多层、更复杂的探测器，但核心思想是一样的！</p>
+            <p>🎓 这个小工具展示了AI识别物体的基本原理</p>
+            <p>真实的AI系统会寻找更多种类的线索，但核心思想是一样的：<strong>寻找特征 → 对比档案 → 得出结论</strong>！</p>
         </footer>
     </div>
 

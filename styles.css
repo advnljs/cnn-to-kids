@@ -823,3 +823,139 @@ canvas {
         opacity: 1;
     }
 }
+
+/* AI侦探主题样式 */
+.detective-avatar {
+    display: inline-block;
+    font-size: 2em;
+    margin-right: 10px;
+    animation: detectiveBounce 2s ease-in-out infinite;
+}
+
+@keyframes detectiveBounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-5px);
+    }
+}
+
+/* 线索卡片样式 */
+.clue-card {
+    display: inline-block;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+}
+
+/* 侦探扫描区域 */
+.detective-scan {
+    border: 2px solid #667eea;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+}
+
+/* 线索收集区 */
+.clue-collection {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.clue-card-display {
+    background: white;
+    border: 3px solid #667eea;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    transition: transform 0.3s ease;
+}
+
+.clue-card-display:hover {
+    transform: translateY(-5px) scale(1.02);
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+}
+
+/* 档案卡片样式 */
+.archive-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.archive-card {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border: 3px solid;
+    transition: all 0.3s ease;
+}
+
+.archive-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+}
+
+.cat-card {
+    border-color: #667eea;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+}
+
+.flower-card {
+    border-color: #ff69b4;
+    background: linear-gradient(135deg, rgba(255, 105, 180, 0.1) 0%, rgba(255, 182, 193, 0.1) 100%);
+}
+
+.archive-icon {
+    font-size: 4em;
+    margin-bottom: 10px;
+    animation: archiveFloat 3s ease-in-out infinite;
+}
+
+@keyframes archiveFloat {
+    0%, 100% {
+        transform: translateY(0) rotate(0deg);
+    }
+    50% {
+        transform: translateY(-10px) rotate(5deg);
+    }
+}
+
+.archive-title {
+    font-size: 1.3em;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.archive-features {
+    text-align: left;
+    color: #666;
+    line-height: 1.8;
+    font-size: 14px;
+}
+
+/* 训练按钮样式 */
+.btn-cat {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-cat:hover {
+    background: linear-gradient(135deg, #5568d3 0%, #663a8e 100%);
+}
+
+.btn-flower {
+    background: linear-gradient(135deg, #ff69b4 0%, #ff1493 100%);
+    color: white;
+}
+
+.btn-flower:hover {
+    background: linear-gradient(135deg, #ff5aa5 0%, #dd1283 100%);
+}
