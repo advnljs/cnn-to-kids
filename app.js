@@ -1827,22 +1827,70 @@ class CNNProcessor {
         }
         const hasRoundShape = centerScore > 5;
         
-        // ===== 花茎检测（底部竖线）=====
+        // ===== 花茎检测（长 + 大致垂直 + 在下半部，允许轻微弯曲）=====
+        // 关键思路：花茎应该是“连续很多行”都出现的竖向线索，而不是短短一截（比如鼻子、嘴巴）。
+        // 做法：
+        // - 只看下半部
+        // - 每一行在中心附近找最强的竖线响应（允许左右轻微漂移）
+        // - 计算“最长连续命中长度”和“横向漂移范围”
+        const bottomStart = Math.floor(size * 0.55);
+        const bandHalfWidth = 3; // 允许稍微歪/弯：在中心左右3格内找
+        const rowHitThreshold = earCount === 2 ? 0.65 : 0.45; // 猫更容易误触发，抬高阈值
+
         let stemScore = 0;
-        for (let y = Math.floor(size * 0.6); y < size; y++) {
-            for (let x = mid - 2; x <= mid + 2; x++) {
+        let hitRows = 0;
+        let longestRun = 0;
+        let currentRun = 0;
+        const hitXs = [];
+
+        for (let y = bottomStart; y < size; y++) {
+            let best = -Infinity;
+            let bestX = mid;
+            for (let x = mid - bandHalfWidth; x <= mid + bandHalfWidth; x++) {
                 if (x >= 0 && x < size) {
-                    stemScore += vert[y][x];
+                    const v = vert[y][x];
+                    if (v > best) {
+                        best = v;
+                        bestX = x;
+                    }
                 }
             }
+
+            // 叠加强度（用于展示/调试），但判定更依赖“连续长度”
+            if (isFinite(best) && best > 0) stemScore += best;
+
+            const hit = best >= rowHitThreshold;
+            if (hit) {
+                hitRows++;
+                hitXs.push(bestX);
+                currentRun++;
+                longestRun = Math.max(longestRun, currentRun);
+            } else {
+                currentRun = 0;
+            }
         }
-        const hasStem = stemScore > 3;
+
+        // 计算“是否足够垂直”：命中行的横向漂移不能太大（允许一点弯）
+        let drift = 0;
+        if (hitXs.length >= 2) {
+            const minX = Math.min(...hitXs);
+            const maxX = Math.max(...hitXs);
+            drift = maxX - minX;
+        }
+
+        const bottomLen = size - bottomStart;
+        const minRun = earCount === 2 ? Math.ceil(bottomLen * 0.60) : Math.ceil(bottomLen * 0.45); // 需要足够“长”
+        const minHits = earCount === 2 ? Math.ceil(bottomLen * 0.70) : Math.ceil(bottomLen * 0.50);
+        const maxDrift = 2; // 允许左右最多漂移2格（弯但不乱跑）
+
+        const hasStem = longestRun >= minRun && hitRows >= minHits && drift <= maxDrift;
         
         return { 
             hasEars, hasLeftEar, hasRightEar, earCount,
             hasPetals, petalCount,
             hasRoundShape, hasStem, 
             leftEarScore, rightEarScore, centerScore, stemScore,
+            stemDebug: { hitRows, longestRun, drift, rowHitThreshold, bottomStart },
             petalDebug: { sectorSums, mean, max, min, peakedness, contrast }
         };
     }
