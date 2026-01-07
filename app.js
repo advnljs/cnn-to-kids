@@ -277,7 +277,7 @@ class KNNClassifier {
     // 空间特征的权重（3个特征图的 5×5 降采样共75维）
     // 为了更强调“耳朵/花瓣/花茎”等关键线索，这里适当降低空间特征影响
     static spatialWeight() {
-        return 0.35;
+        return 0.25;
     }
 
     // 猫/花判别特征的维度权重（越大=越重要）
@@ -294,8 +294,8 @@ class KNNClassifier {
         const base = KNNClassifier.discriminativeWeights();
         const weights = base.slice();
 
-        const catBoost = 1.7;
-        const flowerBoost = 1.7;
+        const catBoost = 2.3;
+        const flowerBoost = 2.3;
 
         if (label === 'cat') {
             // 0-2：耳朵相关
@@ -306,6 +306,43 @@ class KNNClassifier {
         }
 
         return weights;
+    }
+
+    static clamp01(x) {
+        if (!isFinite(x)) return 0;
+        return Math.max(0, Math.min(1, x));
+    }
+
+    // 估计“更像猫 / 更像花”的强度（0-1）
+    // 用于在匹配时做“类别错配惩罚”，减少猫样本和花样本互相跑到前面。
+    static catFlowerStrength(features) {
+        const spatialDims = 75;
+        if (!Array.isArray(features) || features.length < spatialDims + 9) {
+            return { cat: 0, flower: 0 };
+        }
+
+        const earL = KNNClassifier.clamp01(features[spatialDims + 0]);
+        const earR = KNNClassifier.clamp01(features[spatialDims + 1]);
+        const earGap = KNNClassifier.clamp01(features[spatialDims + 2]); // 越小越像猫
+
+        const petalFrac = KNNClassifier.clamp01(features[spatialDims + 3]);
+        const peaked = KNNClassifier.clamp01(features[spatialDims + 4]);
+        const contrast = KNNClassifier.clamp01(features[spatialDims + 5]);
+
+        const stemRun = KNNClassifier.clamp01(features[spatialDims + 6]);
+        const stemHit = KNNClassifier.clamp01(features[spatialDims + 7]);
+        const stemDrift = KNNClassifier.clamp01(features[spatialDims + 8]); // 越小越直
+
+        // 猫：两耳都强 + 中间更空
+        const earMin = Math.min(earL, earR);
+        const cat = earMin * (1 - earGap);
+
+        // 花：花瓣特征 或 花茎特征（取更强的一类）
+        const petal = (petalFrac + peaked + contrast) / 3;
+        const stem = (stemRun + stemHit + (1 - stemDrift)) / 3;
+        const flower = Math.max(petal, stem);
+
+        return { cat, flower };
     }
 
     // 将距离映射为 0-100 的相似度（用于展示）
@@ -388,7 +425,23 @@ class KNNClassifier {
             sum += discWeights[j] * diff * diff;
         }
 
-        return Math.sqrt(sum);
+        let distance = Math.sqrt(sum);
+
+        // 类别错配惩罚：当当前图像“很像猫/很像花”时，让另一类样本自动更远一些
+        // 这样“画花时猫样本很像/画猫时花样本很像”的情况会明显减少。
+        const s = KNNClassifier.catFlowerStrength(features1);
+        const margin = 0.18; // 只有差异明显时才启用惩罚
+        const diff = Math.abs(s.flower - s.cat);
+        if (diff >= margin && (sampleLabel === 'cat' || sampleLabel === 'flower')) {
+            const likely = s.flower > s.cat ? 'flower' : 'cat';
+            if (sampleLabel !== likely) {
+                // 惩罚力度：差异越大，惩罚越强
+                const penalty = 0.9 + diff * 3.2;
+                distance += penalty;
+            }
+        }
+
+        return distance;
     }
 
     // 将矩阵展平为特征向量（旧方法，507维，位置相关）
@@ -2518,7 +2571,7 @@ class CNNProcessor {
         // 逐个显示样本并计算相似度
         for (let i = 0; i < samples.length; i++) {
             const sample = samples[i];
-            const distance = KNNClassifier.weightedDistance(currentFeatures, sample.features);
+            const distance = KNNClassifier.weightedDistanceByLabel(currentFeatures, sample.features, sample.label);
             const similarity = KNNClassifier.distanceToSimilarity(distance, maxDist);
 
             const sampleDiv = document.createElement('div');
