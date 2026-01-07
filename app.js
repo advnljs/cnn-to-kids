@@ -832,7 +832,7 @@ class DrawingBoard {
         this.ctx.stroke();
     }
 
-    // 生成简化猫（只有耳朵和脸）
+    // 生成简化猫（保留“圆脸 + 耳朵”，更像猫也更好区分花朵）
     generateSimpleCat() {
         this.clear();
         this.ctx.strokeStyle = 'black';
@@ -840,6 +840,11 @@ class DrawingBoard {
 
         const centerX = this.canvas.width / 2;
         const centerY = this.canvas.height / 2;
+
+        // 画简化的圆脸（关键：没有圆脸时容易和花朵混淆）
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY + 10, 70, 0, Math.PI * 2);
+        this.ctx.stroke();
 
         // 画左耳（三角形）
         this.ctx.beginPath();
@@ -1575,6 +1580,10 @@ class CNNProcessor {
         this.finalResult = document.getElementById('finalResult');
         this.resultContent = document.getElementById('resultContent');
 
+        // 最近一次处理用到的图像（用于“先自动居中再识别”的展示）
+        this.lastRawImageData = null;
+        this.lastPreprocessedImageData = null;
+
         // 训练相关
         this.trainingManager = new TrainingDataManager();
         this.classifier = new KNNClassifier(3);
@@ -1618,6 +1627,10 @@ class CNNProcessor {
             const preprocessedImageData = ImageProcessor.preprocessImage(rawImageData, 280);
             const grayMatrix = ImageProcessor.toGrayscaleMatrix(preprocessedImageData, 28);
 
+            // 保存，供步骤展示使用（避免“位置不同导致看不懂”）
+            this.lastRawImageData = rawImageData;
+            this.lastPreprocessedImageData = preprocessedImageData;
+
             // 步骤1：AI小侦探看到图像
             await this.showStep1(grayMatrix);
             await this.delay(800);
@@ -1647,33 +1660,56 @@ class CNNProcessor {
             <h3>📸 步骤 1：AI小侦探看到了你的画</h3>
             <div class="step-description">
                 <div class="detective-avatar">🤖</div>
-                <strong>"哇！让我仔细看看这是什么..."</strong><br>
-                AI小侦探把你的画记在脑子里，准备开始寻找线索！
+                <strong>"先把图放到中间，这样更好观察！"</strong><br>
+                AI小侦探会先<strong>自动居中</strong>你的画，再开始找线索（这样位置偏左/偏右也不怕）。
             </div>
-            <div class="visualization" style="justify-content: center;">
-                <div style="text-align: center;">
-                    <canvas id="originalImage" width="200" height="200" style="border: 4px solid #667eea; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);"></canvas>
-                    <div style="margin-top: 10px; font-size: 14px; color: #666;">你画的图</div>
+            <div class="visualization" style="justify-content: center; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap; justify-content: center;">
+                    <div style="text-align: center;">
+                        <canvas id="rawPreview" width="180" height="180" style="border: 4px solid #6c757d; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);"></canvas>
+                        <div style="margin-top: 8px; font-size: 14px; color: #666;">你画的图（原位置）</div>
+                    </div>
+                    <div class="arrow" style="font-size: 2.2em;">→</div>
+                    <div style="text-align: center;">
+                        <canvas id="centeredPreview" width="180" height="180" style="border: 4px solid #667eea; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);"></canvas>
+                        <div style="margin-top: 8px; font-size: 14px; color: #666;">AI自动居中后</div>
+                    </div>
                 </div>
             </div>
         `;
         this.stepsContainer.appendChild(step);
 
         await this.delay(100);
-        
-        // 绘制原始图像（更大、更清晰）
-        const canvas = document.getElementById('originalImage');
-        const ctx = canvas.getContext('2d');
-        const rawImageData = this.drawingBoard.getImageData();
-        
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = rawImageData.width;
-        tempCanvas.height = rawImageData.height;
-        tempCanvas.getContext('2d').putImageData(rawImageData, 0, 0);
-        
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, 200, 200);
-        ctx.drawImage(tempCanvas, 0, 0, 200, 200);
+
+        const rawCanvas = document.getElementById('rawPreview');
+        const centeredCanvas = document.getElementById('centeredPreview');
+        const rawCtx = rawCanvas?.getContext('2d');
+        const centeredCtx = centeredCanvas?.getContext('2d');
+
+        const rawImageData = this.lastRawImageData ?? this.drawingBoard.getImageData();
+        const preprocessedImageData = this.lastPreprocessedImageData ?? ImageProcessor.preprocessImage(rawImageData, 280);
+
+        // raw
+        if (rawCtx) {
+            const tmp = document.createElement('canvas');
+            tmp.width = rawImageData.width;
+            tmp.height = rawImageData.height;
+            tmp.getContext('2d').putImageData(rawImageData, 0, 0);
+            rawCtx.fillStyle = 'white';
+            rawCtx.fillRect(0, 0, 180, 180);
+            rawCtx.drawImage(tmp, 0, 0, 180, 180);
+        }
+
+        // centered
+        if (centeredCtx) {
+            const tmp = document.createElement('canvas');
+            tmp.width = preprocessedImageData.width;
+            tmp.height = preprocessedImageData.height;
+            tmp.getContext('2d').putImageData(preprocessedImageData, 0, 0);
+            centeredCtx.fillStyle = 'white';
+            centeredCtx.fillRect(0, 0, 180, 180);
+            centeredCtx.drawImage(tmp, 0, 0, 180, 180);
+        }
     }
 
     async showStep2(matrix) {
@@ -1712,16 +1748,17 @@ class CNNProcessor {
 
         await this.delay(300);
 
-        // 绘制原图
+        // 绘制“居中后的图”（与识别计算使用同一份图），避免因为位置不同让小朋友困惑
         const canvas = document.getElementById('scanCanvas');
         const ctx = canvas.getContext('2d');
-        const rawImageData = this.drawingBoard.getImageData();
-        
+        const rawImageData = this.lastRawImageData ?? this.drawingBoard.getImageData();
+        const preprocessedImageData = this.lastPreprocessedImageData ?? ImageProcessor.preprocessImage(rawImageData, 280);
+
         const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = rawImageData.width;
-        tempCanvas.height = rawImageData.height;
-        tempCanvas.getContext('2d').putImageData(rawImageData, 0, 0);
-        
+        tempCanvas.width = preprocessedImageData.width;
+        tempCanvas.height = preprocessedImageData.height;
+        tempCanvas.getContext('2d').putImageData(preprocessedImageData, 0, 0);
+
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, 280, 280);
         ctx.drawImage(tempCanvas, 0, 0, 280, 280);
@@ -1866,24 +1903,124 @@ class CNNProcessor {
         const size = edge.length; // 13x13
         const mid = Math.floor(size / 2);
         
-        // ===== 猫耳朵检测（左右两个尖角）=====
-        // 左耳区域（左上）
+        // ===== 猫耳朵检测（顶部“两峰值”，更不怕左右偏移）=====
+        // 思路：耳朵会在顶部形成两个明显“尖峰”。注意：标准小猫的“圆脸边线”可能会让中间不够空，
+        // 所以这里对“中间必须很空”的要求要更宽松，否则会出现“只找到一只耳朵”的情况。
+        const topRows = Math.max(2, Math.floor(size * 0.28)); // 顶部窗口（稍微更靠上，减少圆脸边线干扰）
+        const colSums = Array(size).fill(0);
+        for (let y = 0; y < topRows; y++) {
+            for (let x = 0; x < size; x++) {
+                colSums[x] += edge[y][x];
+            }
+        }
+        const colAvg = colSums.map(v => v / topRows); // 0-1附近
+
+        // 轻微平滑，减少噪声
+        const smooth = colAvg.map((_, i) => {
+            const a = colAvg[Math.max(0, i - 1)];
+            const b = colAvg[i];
+            const c = colAvg[Math.min(size - 1, i + 1)];
+            return (a + b + c) / 3;
+        });
+
+        const meanTop = smooth.reduce((acc, v) => acc + v, 0) / size;
+        const sortedIdx = [...Array(size).keys()].sort((i, j) => smooth[j] - smooth[i]);
+        const minSep = Math.max(3, Math.floor(size * 0.30));
+
+        const p1 = sortedIdx[0];
+        let p2 = null;
+        for (let k = 1; k < sortedIdx.length; k++) {
+            const cand = sortedIdx[k];
+            if (Math.abs(cand - p1) >= minSep) { p2 = cand; break; }
+        }
+
+        let hasLeftEar = false;
+        let hasRightEar = false;
         let leftEarScore = 0;
-        for (let y = 0; y < Math.floor(size * 0.4); y++) {
-            for (let x = 0; x < mid - 1; x++) {
-                leftEarScore += edge[y][x];
-            }
-        }
-        let hasLeftEar = leftEarScore > 4;
-        
-        // 右耳区域（右上）
         let rightEarScore = 0;
-        for (let y = 0; y < Math.floor(size * 0.4); y++) {
-            for (let x = mid + 1; x < size; x++) {
-                rightEarScore += edge[y][x];
+
+        if (p2 !== null) {
+            const leftX = Math.min(p1, p2);
+            const rightX = Math.max(p1, p2);
+            leftEarScore = smooth[leftX];
+            rightEarScore = smooth[rightX];
+
+            const separation = rightX - leftX;
+            let gapAvg = 0;
+            if (separation > 1) {
+                let gapSum = 0;
+                let gapCnt = 0;
+                for (let x = leftX + 1; x < rightX; x++) {
+                    gapSum += smooth[x];
+                    gapCnt++;
+                }
+                gapAvg = gapCnt > 0 ? gapSum / gapCnt : 0;
+            }
+
+            // 峰值门槛：既要绝对强，也要相对强（对小猫更友好一点）
+            const peakAbs = 0.18;
+            const peakRel = meanTop * 1.6;
+            const peakThreshold = Math.max(peakAbs, peakRel);
+
+            const minPeak = Math.min(leftEarScore, rightEarScore);
+            const gapRatioThreshold = 0.98; // 中间相对更空（放宽，避免标准猫被误判成“单耳”）
+
+            const hasTwoEarsShape =
+                separation >= minSep &&
+                leftEarScore >= peakThreshold &&
+                rightEarScore >= peakThreshold &&
+                gapAvg <= minPeak * gapRatioThreshold;
+
+            if (hasTwoEarsShape) {
+                // 根据左右位置映射到“左耳/右耳”
+                hasLeftEar = leftX < mid;
+                hasRightEar = rightX > mid;
+                // 若都落在同侧（极端偏移），也给它拆成两只耳朵用于展示
+                if (!hasLeftEar && !hasRightEar) {
+                    hasLeftEar = true;
+                    hasRightEar = true;
+                }
+            } else {
+                // 兜底1：分别在左半边/右半边找一个峰（不要求中间很空，解决“标准猫只找到一只耳朵”）
+                let leftPeakX = 0, leftPeakV = -Infinity;
+                for (let x = 0; x < mid; x++) {
+                    if (smooth[x] > leftPeakV) { leftPeakV = smooth[x]; leftPeakX = x; }
+                }
+                let rightPeakX = mid + 1, rightPeakV = -Infinity;
+                for (let x = mid + 1; x < size; x++) {
+                    if (smooth[x] > rightPeakV) { rightPeakV = smooth[x]; rightPeakX = x; }
+                }
+                const sepLR = rightPeakX - leftPeakX;
+
+                if (isFinite(leftPeakV) && isFinite(rightPeakV) && leftPeakV >= peakThreshold && rightPeakV >= peakThreshold && sepLR >= minSep) {
+                    hasLeftEar = true;
+                    hasRightEar = true;
+                    leftEarScore = leftPeakV;
+                    rightEarScore = rightPeakV;
+                } else {
+                    // 兜底2：单耳（特别强的单峰也算一只耳朵，但不作为“关键特征”）
+                    const veryStrong = 0.30;
+                    const peakX = p1;
+                    const peakV = smooth[peakX];
+                    if (peakV >= veryStrong) {
+                        if (peakX <= mid) hasLeftEar = true;
+                        if (peakX >= mid) hasRightEar = true;
+                        // 记录分数
+                        if (hasLeftEar) leftEarScore = peakV;
+                        if (hasRightEar) rightEarScore = peakV;
+                    }
+                }
+            }
+        } else {
+            // 只有一个明显峰值：按单耳处理
+            const peakX = p1;
+            const peakV = smooth[peakX];
+            const veryStrong = 0.30;
+            if (peakV >= veryStrong) {
+                if (peakX <= mid) { hasLeftEar = true; leftEarScore = peakV; }
+                if (peakX >= mid) { hasRightEar = true; rightEarScore = peakV; }
             }
         }
-        let hasRightEar = rightEarScore > 4;
 
         // ===== 花瓣检测（多瓣“突起” vs 一整圈轮廓）=====
         // 关键思路：花瓣通常是“多处突起”，而猫脸轮廓更像“均匀一圈”。
