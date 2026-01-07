@@ -4,6 +4,9 @@ const DEBUG_MODE = (() => {
     return urlParams.get('debug') === 'true';
 })();
 
+// 训练数据存储key（当“特征定义/权重”升级时更换，避免旧数据与新算法混用）
+const TRAINING_STORAGE_KEY = 'cnn_training_data_catflower_v2';
+
 if (DEBUG_MODE) {
     console.log('🐛 Debug模式已启用 - 将跳过动画直接显示结果');
 }
@@ -167,7 +170,7 @@ class TrainingDataManager {
                     imageDataURL: imageDataToSave
                 };
             });
-            localStorage.setItem('cnn_training_data', JSON.stringify(samplesToSave));
+            localStorage.setItem(TRAINING_STORAGE_KEY, JSON.stringify(samplesToSave));
         } catch (e) {
             console.warn('无法保存训练数据到localStorage:', e);
         }
@@ -176,7 +179,7 @@ class TrainingDataManager {
     // 从localStorage加载
     loadFromLocalStorage() {
         try {
-            const saved = localStorage.getItem('cnn_training_data');
+            const saved = localStorage.getItem(TRAINING_STORAGE_KEY);
             if (saved) {
                 const loaded = JSON.parse(saved);
 
@@ -271,15 +274,54 @@ class KNNClassifier {
         this.k = k;  // K近邻的K值
     }
 
+    // 空间特征的权重（3个特征图的 5×5 降采样共75维）
+    // 为了更强调“耳朵/花瓣/花茎”等关键线索，这里适当降低空间特征影响
+    static spatialWeight() {
+        return 0.35;
+    }
+
+    // 猫/花判别特征的维度权重（越大=越重要）
+    static discriminativeWeights() {
+        // 9维判别特征（与 extractRegionalFeatures 的后9维一一对应）：
+        // 0 左耳强度, 1 右耳强度, 2 耳朵中间空隙(越小越像猫)
+        // 3 花瓣扇区占比, 4 花瓣峰值程度, 5 花瓣对比度
+        // 6 花茎连续长度比例, 7 花茎命中比例, 8 花茎漂移(越小越直)
+        return [25, 25, 20, 30, 25, 20, 35, 25, 15];
+    }
+
+    // “按类别加强权重”：对猫样本更看重耳朵，对花样本更看重花瓣+花茎
+    static discriminativeWeightsForLabel(label) {
+        const base = KNNClassifier.discriminativeWeights();
+        const weights = base.slice();
+
+        const catBoost = 1.7;
+        const flowerBoost = 1.7;
+
+        if (label === 'cat') {
+            // 0-2：耳朵相关
+            for (let i = 0; i <= 2; i++) weights[i] = weights[i] * catBoost;
+        } else if (label === 'flower') {
+            // 3-8：花瓣+花茎相关
+            for (let i = 3; i <= 8; i++) weights[i] = weights[i] * flowerBoost;
+        }
+
+        return weights;
+    }
+
     // 将距离映射为 0-100 的相似度（用于展示）
     // 说明：我们用“最大可能距离”做归一化，让数值更直观、跨样本更稳定。
-    // 加权距离的最大值（特征都在0-1时）约为 sqrt(75*1 + 9*10)。
+    // 加权距离的最大值（特征都在0-1时）约为 sqrt(75*spatialWeight + sum(maxDiscWeights))。
     static maxWeightedDistance() {
         const spatialDims = 75;
-        const discriminativeDims = 9;
-        const spatialWeight = 1.0;
-        const discriminativeWeight = 10.0;
-        return Math.sqrt(spatialDims * spatialWeight + discriminativeDims * discriminativeWeight);
+        const spatialWeight = KNNClassifier.spatialWeight();
+
+        // 取“猫增强”和“花增强”两种情况下每一维的最大权重，作为全局上界，保证相似度可比
+        const catW = KNNClassifier.discriminativeWeightsForLabel('cat');
+        const flowerW = KNNClassifier.discriminativeWeightsForLabel('flower');
+        const maxW = catW.map((w, i) => Math.max(w, flowerW[i] ?? w));
+        const discSum = maxW.reduce((acc, w) => acc + w, 0);
+
+        return Math.sqrt(spatialDims * spatialWeight + discSum);
     }
 
     static distanceToSimilarity(distance, maxDistance = KNNClassifier.maxWeightedDistance()) {
@@ -304,24 +346,46 @@ class KNNClassifier {
     static weightedDistance(features1, features2) {
         // 84维特征：前75维是降采样特征，后9维是判别特征
         const spatialDims = 75;
-        const discriminativeDims = 9;
-
-        // 权重：判别特征的权重设为空间特征的10倍
-        const spatialWeight = 1.0;
-        const discriminativeWeight = 10.0;
+        const spatialWeight = KNNClassifier.spatialWeight();
+        const discWeights = KNNClassifier.discriminativeWeights();
 
         let sum = 0;
 
         // 前75维：空间特征（权重1.0）
-        for (let i = 0; i < spatialDims; i++) {
+        for (let i = 0; i < spatialDims && i < features1.length && i < features2.length; i++) {
             const diff = features1[i] - features2[i];
             sum += spatialWeight * diff * diff;
         }
 
-        // 后9维：判别特征（权重10.0）
-        for (let i = spatialDims; i < spatialDims + discriminativeDims; i++) {
+        // 后9维：猫/花判别特征（按维度加权）
+        for (let j = 0; j < discWeights.length; j++) {
+            const i = spatialDims + j;
+            if (i >= features1.length || i >= features2.length) break;
             const diff = features1[i] - features2[i];
-            sum += discriminativeWeight * diff * diff;
+            sum += discWeights[j] * diff * diff;
+        }
+
+        return Math.sqrt(sum);
+    }
+
+    // 按“训练样本类别”加权的距离（用于匹配/排序）
+    static weightedDistanceByLabel(features1, features2, sampleLabel) {
+        const spatialDims = 75;
+        const spatialWeight = KNNClassifier.spatialWeight();
+        const discWeights = KNNClassifier.discriminativeWeightsForLabel(sampleLabel);
+
+        let sum = 0;
+
+        for (let i = 0; i < spatialDims && i < features1.length && i < features2.length; i++) {
+            const diff = features1[i] - features2[i];
+            sum += spatialWeight * diff * diff;
+        }
+
+        for (let j = 0; j < discWeights.length; j++) {
+            const i = spatialDims + j;
+            if (i >= features1.length || i >= features2.length) break;
+            const diff = features1[i] - features2[i];
+            sum += discWeights[j] * diff * diff;
         }
 
         return Math.sqrt(sum);
@@ -377,65 +441,122 @@ class KNNClassifier {
             }
         }
 
-        // 第二部分：关键判别特征（专门区分笑脸/哭脸）
-        const horizontal = poolResults['horizontal'];
-        const size = horizontal.length;
+        // 第二部分：关键判别特征（专门区分小猫/花朵）
+        // 目标：让“猫耳朵/花瓣/花茎”在KNN距离里更有存在感，从而减少猫和花被判得很像。
+        const edge = poolResults['edge'];
+        const vertical = poolResults['vertical'];
+        const size = edge.length;
+        const mid = Math.floor(size / 2);
 
-        // 将图像分成上、中、下三个区域
-        const topThird = Math.floor(size / 3);
-        const bottomThird = Math.floor(size * 2 / 3);
-
-        // 提取上半部分的横线特征（笑脸嘴巴上翘）
-        let topSum = 0, topCount = 0, topMax = -Infinity;
-        for (let y = 0; y < topThird; y++) {
-            for (let x = 0; x < size; x++) {
-                const val = horizontal[y][x];
-                topSum += val;
-                topCount++;
-                topMax = Math.max(topMax, val);
+        // 1) 猫耳朵：左右上角强边缘 + 中间相对更空
+        const earRows = Math.max(1, Math.floor(size * 0.35));
+        let leftSum = 0, leftCnt = 0;
+        let rightSum = 0, rightCnt = 0;
+        let gapSum = 0, gapCnt = 0;
+        for (let y = 0; y < earRows; y++) {
+            for (let x = 0; x < mid - 1; x++) {
+                leftSum += edge[y][x];
+                leftCnt++;
+            }
+            for (let x = mid + 1; x < size; x++) {
+                rightSum += edge[y][x];
+                rightCnt++;
+            }
+            for (let x = mid - 1; x <= mid + 1; x++) {
+                if (x >= 0 && x < size) {
+                    gapSum += edge[y][x];
+                    gapCnt++;
+                }
             }
         }
-        const topAvg = topCount > 0 ? topSum / topCount : 0;
-        if (topMax === -Infinity) topMax = 0;
+        const leftEarAvg = leftCnt > 0 ? leftSum / leftCnt : 0;     // 0-1
+        const rightEarAvg = rightCnt > 0 ? rightSum / rightCnt : 0; // 0-1
+        const earGapAvg = gapCnt > 0 ? gapSum / gapCnt : 0;         // 0-1（越低越像猫）
 
-        // 提取中间部分的横线特征
-        let midSum = 0, midCount = 0, midMax = -Infinity;
-        for (let y = topThird; y < bottomThird; y++) {
+        // 2) 花瓣：环形区域“多峰值”分布（多瓣=多方向突起）
+        const sectorCount = 12;
+        const sectorSums = Array(sectorCount).fill(0);
+        const sectorCnts = Array(sectorCount).fill(0);
+        const cx = (size - 1) / 2;
+        const cy = (size - 1) / 2;
+        const rMin = size * 0.28;
+        const rMax = size * 0.50;
+        for (let y = 0; y < size; y++) {
             for (let x = 0; x < size; x++) {
-                const val = horizontal[y][x];
-                midSum += val;
-                midCount++;
-                midMax = Math.max(midMax, val);
+                const dx = x - cx;
+                const dy = y - cy;
+                const r = Math.sqrt(dx * dx + dy * dy);
+                if (r >= rMin && r <= rMax) {
+                    let a = Math.atan2(dy, dx);
+                    if (a < 0) a += Math.PI * 2;
+                    const idx = Math.min(sectorCount - 1, Math.floor((a / (Math.PI * 2)) * sectorCount));
+                    sectorSums[idx] += edge[y][x];
+                    sectorCnts[idx] += 1;
+                }
             }
         }
-        const midAvg = midCount > 0 ? midSum / midCount : 0;
-        if (midMax === -Infinity) midMax = 0;
+        const sectorAvgs = sectorSums.map((s, i) => (sectorCnts[i] > 0 ? s / sectorCnts[i] : 0)); // 0-1
+        const mean = sectorAvgs.reduce((acc, v) => acc + v, 0) / sectorCount;
+        const max = Math.max(...sectorAvgs);
+        const min = Math.min(...sectorAvgs);
+        const peakedness = max / (mean + 1e-9);              // >=1
+        const contrast = (max - min) / (max + 1e-9);         // 0-1
+        const petalFactor = 1.35;
+        const petalAbsFloor = 0.15;
+        const petalCount = sectorAvgs.filter(v => v > mean * petalFactor && v > petalAbsFloor).length;
+        const petalFrac = petalCount / sectorCount;          // 0-1
+        const peakedNorm = Math.max(0, Math.min(1, (peakedness - 1) / 1.5)); // 1->0, 2.5->1
+        const contrastNorm = Math.max(0, Math.min(1, contrast));
 
-        // 提取下半部分的横线特征（哭脸嘴巴下翘）
-        let bottomSum = 0, bottomCount = 0, bottomMax = -Infinity;
-        for (let y = bottomThird; y < size; y++) {
-            for (let x = 0; x < size; x++) {
-                const val = horizontal[y][x];
-                bottomSum += val;
-                bottomCount++;
-                bottomMax = Math.max(bottomMax, val);
+        // 3) 花茎：下半部“长 + 大致垂直（允许轻微弯）”
+        const bottomStart = Math.floor(size * 0.55);
+        const bottomLen = Math.max(1, size - bottomStart);
+        const bandHalfWidth = 3;
+        const rowHitThreshold = 0.45;
+        let hitRows = 0;
+        let longestRun = 0;
+        let currentRun = 0;
+        const hitXs = [];
+        for (let y = bottomStart; y < size; y++) {
+            let best = -Infinity;
+            let bestX = mid;
+            for (let x = mid - bandHalfWidth; x <= mid + bandHalfWidth; x++) {
+                if (x >= 0 && x < size) {
+                    const v = vertical[y][x];
+                    if (v > best) {
+                        best = v;
+                        bestX = x;
+                    }
+                }
+            }
+            const hit = best >= rowHitThreshold;
+            if (hit) {
+                hitRows++;
+                hitXs.push(bestX);
+                currentRun++;
+                longestRun = Math.max(longestRun, currentRun);
+            } else {
+                currentRun = 0;
             }
         }
-        const bottomAvg = bottomCount > 0 ? bottomSum / bottomCount : 0;
-        if (bottomMax === -Infinity) bottomMax = 0;
+        let drift = 0;
+        if (hitXs.length >= 2) {
+            drift = Math.max(...hitXs) - Math.min(...hitXs);
+        }
+        const stemRunRatio = longestRun / bottomLen;         // 0-1
+        const stemHitRatio = hitRows / bottomLen;            // 0-1
+        const stemDriftNorm = Math.max(0, Math.min(1, drift / 3)); // 0=很直，1=很飘
 
-        // 添加判别特征
-        features.push(topAvg);      // 上部平均值
-        features.push(topMax);      // 上部最大值
-        features.push(midAvg);      // 中部平均值
-        features.push(midMax);      // 中部最大值
-        features.push(bottomAvg);   // 下部平均值
-        features.push(bottomMax);   // 下部最大值
-
-        // 添加对比特征（最关键！）
-        features.push(topAvg - bottomAvg);        // 上下差异（笑脸为正，哭脸为负）
-        features.push(topMax - bottomMax);        // 上下最大值差异
-        features.push((topAvg + topMax) - (bottomAvg + bottomMax));  // 综合差异
+        // 按顺序加入9维判别特征（与 discriminativeWeights 对齐）
+        features.push(leftEarAvg);
+        features.push(rightEarAvg);
+        features.push(earGapAvg);
+        features.push(petalFrac);
+        features.push(peakedNorm);
+        features.push(contrastNorm);
+        features.push(stemRunRatio);
+        features.push(stemHitRatio);
+        features.push(stemDriftNorm);
 
         // 3个特征图 × 5×5 = 75维
         // + 判别特征 9维
@@ -453,7 +574,7 @@ class KNNClassifier {
         const distances = trainingSamples.map((sample, index) => ({
             index,
             label: sample.label,
-            distance: KNNClassifier.weightedDistance(features, sample.features)
+            distance: KNNClassifier.weightedDistanceByLabel(features, sample.features, sample.label)
         }));
 
         // 按距离排序
@@ -474,13 +595,15 @@ class KNNClassifier {
         // 强领先机制：如果第一近邻明显优于第二近邻，则直接采纳第一近邻结果
         // 判定依据（任一满足即可）：
         // 1) 距离比率阈值：d1 / d0 >= 1.8
-        // 2) 相似度差距阈值：((d1 - d0) * 10) >= 20  —— 与可视化中 100 - d*10 的映射一致
+        // 2) 相似度差距阈值：sim0 - sim1 >= 阈值（与 distanceToSimilarity 的映射一致）
         const d0 = neighbors[0]?.distance ?? Infinity;
         const d1 = neighbors[1]?.distance ?? Infinity;
         const ratioThreshold = 1.8;
-        const similarityMarginThreshold = 20; // 百分点
+        const similarityMarginThreshold = 12; // 百分点
         const ratio1 = isFinite(d0) ? (d1 / (d0 + 1e-9)) : 1;
-        const similarityMargin = (d1 - d0) * 10; // 约等于 sim0 - sim1
+        const sim0 = KNNClassifier.distanceToSimilarity(d0);
+        const sim1 = KNNClassifier.distanceToSimilarity(d1);
+        const similarityMargin = sim0 - sim1;
 
         let predictedLabel = null;
         let confidence = 0;
@@ -488,9 +611,8 @@ class KNNClassifier {
         if (isFinite(d0) && isFinite(d1) && (ratio1 >= ratioThreshold || similarityMargin >= similarityMarginThreshold)) {
             // 直接采用第一近邻
             predictedLabel = neighbors[0].label;
-            // 置信度基于第一近邻的相似度映射（与可视化一致），并给出最低保底
-            const topSimilarity = Math.max(0, Math.min(99, Math.round(100 - d0 * 10)));
-            confidence = Math.max(85, topSimilarity);
+            // 置信度基于第一近邻相似度（与可视化一致），并给出最低保底
+            confidence = Math.max(85, Math.round(sim0));
         } else {
             // 常规KNN投票
             let maxCount = 0;
@@ -2418,7 +2540,7 @@ class CNNProcessor {
 
             const sample = samples[i];
             // 用加权距离（与最终KNN预测一致），并用归一化映射得到更直观的相似度
-            const distance = KNNClassifier.weightedDistance(currentFeatures, sample.features);
+            const distance = KNNClassifier.weightedDistanceByLabel(currentFeatures, sample.features, sample.label);
             const similarity = KNNClassifier.distanceToSimilarity(distance, maxDist).toFixed(1);
 
             // 调试：输出训练样本特征
