@@ -683,7 +683,7 @@ class DrawingBoard {
             this.ctx.save();
             this.ctx.translate(petalX, petalY);
             this.ctx.rotate(angle);
-            this.ctx.beginPath();
+        this.ctx.beginPath();
             this.ctx.ellipse(0, 0, petalRadius, petalRadius * 0.6, 0, 0, Math.PI * 2);
             this.ctx.stroke();
             this.ctx.restore();
@@ -781,7 +781,7 @@ class DrawingBoard {
         this.ctx.strokeStyle = 'black';
         this.ctx.lineWidth = 6;
         petalPositions.forEach(pos => {
-            this.ctx.beginPath();
+        this.ctx.beginPath();
             this.ctx.arc(centerX + pos.x, centerY + pos.y, 25, 0, Math.PI * 2);
             this.ctx.stroke();
         });
@@ -1589,7 +1589,7 @@ class CNNProcessor {
         this.stepsContainer.appendChild(step);
 
         await this.delay(300);
-        
+
         // 绘制原图
         const canvas = document.getElementById('scanCanvas');
         const ctx = canvas.getContext('2d');
@@ -1752,7 +1752,7 @@ class CNNProcessor {
                 leftEarScore += edge[y][x];
             }
         }
-        const hasLeftEar = leftEarScore > 4;
+        let hasLeftEar = leftEarScore > 4;
         
         // 右耳区域（右上）
         let rightEarScore = 0;
@@ -1761,11 +1761,7 @@ class CNNProcessor {
                 rightEarScore += edge[y][x];
             }
         }
-        const hasRightEar = rightEarScore > 4;
-        
-        // 两只耳朵都有才算有耳朵
-        const hasEars = hasLeftEar && hasRightEar;
-        const earCount = (hasLeftEar ? 1 : 0) + (hasRightEar ? 1 : 0);
+        let hasRightEar = rightEarScore > 4;
 
         // ===== 花瓣检测（多瓣“突起” vs 一整圈轮廓）=====
         // 关键思路：花瓣通常是“多处突起”，而猫脸轮廓更像“均匀一圈”。
@@ -1802,19 +1798,31 @@ class CNNProcessor {
         const contrast = (max - min) / (max + 1e-9);
 
         // 判定“花瓣扇区”：强度明显高于平均值
-        // 如果已经检测到双耳（很像猫），我们提高阈值，避免猫脸被误判为花瓣
-        const factor = earCount === 2 ? 1.65 : 1.35;
-        const absFloor = earCount === 2 ? 1.0 : 0.6; // 绝对下限，避免噪声
+        // 注意：这里不要用“耳朵检测结果”去影响花瓣阈值，否则会出现
+        // 花朵先被误判出耳朵 -> 阈值变严 -> 反而检测不到花瓣 -> UI显示很怪。
+        const factor = 1.35;
+        const absFloor = 0.6; // 绝对下限，避免噪声
         const petalCount = sectorSums.filter(v => v > mean * factor && v > absFloor).length;
 
         // 花瓣成立条件：
         // - 至少4个方向有“突起”
         // - 峰值明显（不是均匀一圈）
         // - 对比度够大
-        const minPetals = earCount === 2 ? 6 : 4;
-        const minPeakedness = earCount === 2 ? 2.0 : 1.55;
-        const minContrast = earCount === 2 ? 0.55 : 0.40;
+        const minPetals = 4;
+        const minPeakedness = 1.55;
+        const minContrast = 0.40;
         const hasPetals = petalCount >= minPetals && peakedness >= minPeakedness && contrast >= minContrast;
+
+        // 花朵“多瓣”特征很明显时：不要再显示“猫耳朵”
+        // 这样花朵示例不会出现“发现猫耳朵”的误导。
+        if (hasPetals && petalCount >= 4) {
+            hasLeftEar = false;
+            hasRightEar = false;
+        }
+
+        // 两只耳朵都有才算“猫耳朵”关键特征
+        const earCount = (hasLeftEar ? 1 : 0) + (hasRightEar ? 1 : 0);
+        const hasEars = earCount === 2;
         
         // ===== 中心圆形检测（脸或花蕊）=====
         let centerScore = 0;
@@ -1826,7 +1834,7 @@ class CNNProcessor {
             }
         }
         const hasRoundShape = centerScore > 5;
-        
+
         // ===== 花茎检测（长 + 大致垂直 + 在下半部，允许轻微弯曲）=====
         // 关键思路：花茎应该是“连续很多行”都出现的竖向线索，而不是短短一截（比如鼻子、嘴巴）。
         // 做法：
@@ -1917,7 +1925,7 @@ class CNNProcessor {
         this.stepsContainer.appendChild(step);
 
         await this.delay(300);
-        
+
         const container = document.getElementById('clueCards');
         
         // 线索卡片定义 - 更详细的特征
@@ -1990,7 +1998,7 @@ class CNNProcessor {
                         <div style="font-weight: bold; color: ${card.color}; font-size: 1.2em;">${card.title}</div>
                         <div style="font-size: 0.9em; color: white; background: ${card.color}; padding: 5px 10px; border-radius: 15px; margin-top: 8px;">
                             ⭐ 关键特征！
-                        </div>
+                    </div>
                         <div style="font-size: 0.75em; color: #333; margin-top: 8px;">${card.desc}</div>
                     `;
                 } else {
@@ -2011,11 +2019,11 @@ class CNNProcessor {
                     <div style="font-size: 2.5em; margin-bottom: 8px; filter: grayscale(100%); opacity: 0.3;">${card.icon}</div>
                     <div style="font-weight: bold; color: #bbb; font-size: 1em;">${card.title}</div>
                     <div style="font-size: 0.8em; color: #bbb; margin-top: 8px;">❌ 没找到</div>
-                `;
+            `;
             }
             
             container.appendChild(cardEl);
-            
+
             // 动画显示
             await this.delay(100);
             cardEl.style.opacity = '1';
@@ -2072,7 +2080,7 @@ class CNNProcessor {
 
     async showStep4(originalMatrix, poolResults) {
         const features = this.lastAnalyzedFeatures || { hasEars: false, hasRoundShape: false, hasStem: false };
-        
+
         // 检查是否使用训练模式
         const trainingSamples = this.trainingManager.getSamples();
         const useTraining = trainingSamples.length >= 2;
@@ -2966,7 +2974,7 @@ class CNNProcessor {
         const midY = Math.floor(featSize / 2);
         const outerRadius = Math.floor(featSize * 0.4);
         const innerRadius = Math.floor(featSize * 0.2);
-        
+
         for (let y = 0; y < featSize; y++) {
             for (let x = 0; x < featSize; x++) {
                 const dist = Math.sqrt((x - midX) ** 2 + (y - midY) ** 2);
@@ -3076,10 +3084,10 @@ class CNNProcessor {
             const features = KNNClassifier.extractRegionalFeatures(poolResults);
 
             // 保存训练数据（缩略图用 preprocessedImageData，保证和特征一致）
-            this.trainingManager.addSample(features, label, preprocessedImageData);
+        this.trainingManager.addSample(features, label, preprocessedImageData);
 
             // 清空缓存，避免被误用
-            this.lastPoolResults = null;
+        this.lastPoolResults = null;
 
             return this.trainingManager.getStats();
         } finally {
