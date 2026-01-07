@@ -3211,6 +3211,17 @@ class CNNProcessor {
 
         // 优先使用训练好的KNN模型
         const trainingSamples = this.trainingManager.getSamples();
+        // 没有训练数据集：禁止识别，只输出提示（不再走规则分类兜底）
+        if (!trainingSamples || trainingSamples.length === 0) {
+            return {
+                emoji: '⚠️',
+                label: '请先录入数据集',
+                confidence: 0,
+                reason: `⚠️ 还没有录入训练数据集，暂时不能识别。<br>` +
+                        `请先切换到 <strong>🎓 训练模式</strong>，画一张图并点击 <strong>“这是小猫/这是花朵”</strong> 录入样本后再试。`,
+                usedTraining: false
+            };
+        }
         if (trainingSamples.length >= 2) {
             // 至少有2个样本才使用KNN
             const featureVector = KNNClassifier.extractRegionalFeatures(features);
@@ -3235,7 +3246,7 @@ class CNNProcessor {
             }
         }
 
-        // 如果没有训练数据，使用基于区域的简单规则
+        // 训练样本不足以启用KNN时，使用基于区域的简单规则（保底逻辑）
         // 猫的特征：上方有尖角（耳朵）、中间有圆形（脸）
         // 花的特征：中间有圆形分布（花瓣）、下方有竖线（花茎）
 
@@ -3625,6 +3636,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 开始处理
     document.getElementById('startProcess').addEventListener('click', async () => {
+        // 没有录入训练数据集时：禁止识别，并给出提示
+        const stats = processor.getTrainingStats?.();
+        if (!stats || stats.total === 0) {
+            const stepsContainer = document.getElementById('stepsContainer');
+            const finalResult = document.getElementById('finalResult');
+
+            if (stepsContainer) {
+                stepsContainer.innerHTML = `
+                    <div class="step">
+                        <h3>⚠️ 还没有训练数据集</h3>
+                        <div class="step-description">
+                            <div class="detective-avatar">🤖</div>
+                            <strong>"我还没有档案库，没法开始侦探工作！"</strong><br>
+                            请先切换到 <strong>🎓 训练模式</strong>，画一张图并点击 <strong>“这是小猫/这是花朵”</strong> 录入样本，
+                            然后再回来点 <strong>“开始侦探工作”</strong>。
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (finalResult) finalResult.style.display = 'none';
+
+            alert('⚠️ 还没有录入训练数据集，暂时禁止识别。\n请先切换到“训练模式”录入样本后再识别。');
+            return;
+        }
+
         document.getElementById('startProcess').style.display = 'none';
         document.getElementById('resetProcess').style.display = 'block';
         await processor.process();
